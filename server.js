@@ -56,6 +56,12 @@ websocket.on('connection', socket => {
       const ai = joinRoom(room, message.name, 'ai'); if (!ai) { send(socket, { type: 'error', message: 'All three slots are full.' }); return }
       broadcast(room, { type: 'lobby', room: publicRoom(room) }); return
     }
+    if (message.type === 'rename') {
+      const nextName = String(message.name || '').trim().slice(0, 24)
+      if (!nextName || room.started) return
+      player.name = nextName
+      broadcast(room, { type: 'lobby', room: publicRoom(room) }); return
+    }
     if (message.type === 'remove-ai') {
       if (socket.playerId !== room.hostId || room.started) return
       const index = room.slots.findIndex(slot => slot?.type === 'ai'); if (index >= 0) room.slots[index] = null

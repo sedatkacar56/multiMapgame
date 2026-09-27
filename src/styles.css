@@ -26,6 +26,7 @@ header { height: 74px; flex: 0 0 auto; display: grid; grid-template-columns: 250
 .game-shell { min-height: 0; flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 300px; }
 .game-shell.panel-hidden { grid-template-columns: minmax(0, 1fr); }
 .game-shell.panel-hidden > aside { display: none; }
+.multiplayer-in-game .map-controls > *:not(#toggle-fullscreen):not(#toggle-music):not(#music-style):not(.volume-control), .multiplayer-in-game #show-controls { display: none !important; }
 .map-wrap { position: relative; min-width: 0; overflow: hidden; background: #172827; }
 .map-wrap.nuclear-shock { animation: nuclear-shake .72s ease-in-out; }
 .map-wrap.nuclear-shock::after { content: ''; position: absolute; inset: 0; z-index: 20; pointer-events: none; background: rgba(255,244,199,.9); animation: nuclear-flash .72s ease-out forwards; }
@@ -144,6 +145,8 @@ aside { padding: 24px 18px; border-left: 1px solid #2d3a35; background: #101a17;
 .multiplayer-lobby { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: rgba(5,12,10,.82); backdrop-filter: blur(6px); }
 .multiplayer-lobby.multi-configuring { display: none; }
 .multi-return-lobby { position: fixed; z-index: 101; top: 18px; right: 18px; padding: 9px 13px; border: 1px solid #d0a651; background: #18251f; color: #f0c771; cursor: pointer; }
+.multi-empire-name { display: flex; align-items: end; gap: 7px; margin: 14px 0 4px; }.multi-empire-name label { flex: 1; color: #aeb9ae; font-size: 10px; letter-spacing: 1px; text-align: left; text-transform: uppercase; }.multi-empire-name input { display: block; width: 100%; box-sizing: border-box; margin-top: 5px; padding: 8px; border: 1px solid #34473d; background: #18251f; color: #eee7d8; }.multi-empire-name button { white-space: nowrap; }
+.multi-audio-prompt { position: fixed; z-index: 110; right: 18px; bottom: 18px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #4c614f; background: rgba(15,27,22,.96); color: #d8e0d5; font-size: 11px; box-shadow: 0 8px 24px rgba(0,0,0,.4); }.multi-audio-prompt button { padding: 7px 10px; }
 .multiplayer-card { width: min(430px, 100%); padding: 32px; border: 1px solid #465d50; background: #101a17; box-shadow: 0 24px 70px rgba(0,0,0,.5); color: #e8e2d4; }
 .multiplayer-card h2 { margin: 4px 0 8px; font: 600 34px 'Barlow Condensed', sans-serif; color: #f0c771; }
 .multiplayer-card p { color: #9ba89d; font-size: 12px; line-height: 1.5; }
