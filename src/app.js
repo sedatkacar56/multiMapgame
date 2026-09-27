@@ -67,7 +67,7 @@ function orientGeometry(geometry) {
 const state = {
   territories: [], players: [], humanCount: 1, playerCount: 4, phase: 'setup', turn: 0,
   claimWinner: null, selected: null, dice: [], battle: null, message: 'Prepare your campaign.', aiTimer: null, fastAI: true, musicOn: false,
-  turnCount: 0, roundCount: 0, alliances: [], ceasefires: [], pendingRenewals: [], diplomacyTarget: null, diplomacyOffers: [], diplomacySent: {}, diplomacyAggression: {}, attackMode: 'normal', attacksThisTurn: {}, musicStyle: 'campaign', strengthsOn: false, captureAttackOn: false, fogOfWar: false,
+  turnCount: 0, roundCount: 0, turnDeadline: 0, alliances: [], ceasefires: [], pendingRenewals: [], diplomacyTarget: null, diplomacyOffers: [], diplomacySent: {}, diplomacyAggression: {}, attackMode: 'normal', attacksThisTurn: {}, musicStyle: 'campaign', strengthsOn: false, captureAttackOn: false, fogOfWar: false,
   showPacts: false, controlsHidden: false, panelHidden: false, rebelsOn: false, nuclearOn: false, nuclearStrike: null, nuclearTargeting: 'random', nuclearPending: null, battleCounts: {}, alliancesOn: true, autoRejectOffers: false, strengthView: 'off', paused: false, musicVolume: .65, attackAnimation: null,
   showLabels: true, showPlayerLabels: true,
   playerNames: Array(33).fill(''), playerLabelSize: 9
@@ -76,6 +76,7 @@ let mapZoom
 let currentZoom={k:1,x:0,y:0}
 let mapProjection
 let musicContext, musicGain, musicTimer, musicStep=0, musicChange=0, warTrack
+let turnClockTimeout, turnClockInterval
 const musicVoices=new Set()
 
 document.querySelector('#root').innerHTML = `
@@ -119,7 +120,7 @@ document.querySelector('#root').innerHTML = `
         <div class="rules"><span>FIELD RULES</span><p id="rules-text">Each territory can attack once per turn. Only shared borders and marked sea routes are valid. Ties favor the defender. Alliances last 3 turns; ceasefires last 1.</p></div>
       </aside>
     </section>
-    <div id="modal"></div><div id="offer-modal"></div><div id="save-dialog"></div><audio id="war-track" loop preload="auto" aria-hidden="true" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" src="./assets/music/mehter-march.mp3"></audio>
+    <div id="mobile-turn-action" class="mobile-turn-action"></div><div id="modal"></div><div id="offer-modal"></div><div id="save-dialog"></div><audio id="war-track" loop preload="auto" aria-hidden="true" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" src="./assets/music/mehter-march.mp3"></audio>
   </main>`
 warTrack=$('#war-track')
 
@@ -513,6 +514,8 @@ function render() {
   })
   const fireLayer=$('#rebel-fires');if(fireLayer){fireLayer.innerHTML='';state.territories.filter(t=>t.rebel&&isTerritoryVisible(t)).forEach(t=>{const base=[...document.querySelectorAll('.country')].find(el=>el.dataset.id===t.id);if(!base)return;const fire=document.createElementNS('http://www.w3.org/2000/svg','path');fire.setAttribute('d',base.getAttribute('d'));fire.setAttribute('class','rebel-fire-land');fire.dataset.id=t.id;fire.setAttribute('aria-label',`${t.name} is in rebellion`);fireLayer.appendChild(fire)})}
   renderActions(); renderModal(); ensurePlayerLimitOptions(); renderDiplomacyOffers(); updateLabels(); updatePlayerLabels()
+  const currentPlayerForMobile=state.players[state.turn], mobileTurn=document.querySelector('#mobile-turn-action')
+  if(mobileTurn){const mobileCanEnd=Boolean(state.phase==='war'&&currentPlayerForMobile?.isHuman&&(!window.MultiSync?.active||window.MultiSync.playerIndex===state.turn));mobileTurn.innerHTML=mobileCanEnd?`<span data-turn-countdown></span><button class="primary" id="mobile-end-turn">End turn</button>`:'';if(mobileCanEnd)$('#mobile-end-turn').onclick=endTurn}
   renderPacts()
   renderAttackArrow()
   renderStrengthBadges()
@@ -668,8 +671,8 @@ function renderActions() {
     if(selectedTarget!==undefined)state.diplomacyTarget=selectedTarget
     const diplomacy=p?.isHuman?`<div class="action-card diplomacy-card"><label>Diplomacy · Click a country or choose below</label>${targets.length?`<select id="diplomacy-target">${targets.map(target=>`<option value="${target.id}" ${target.id===selectedTarget?'selected':''}>${escapeHtml(target.name)}${agreementStatus(target.id)}</option>`).join('')}</select><div class="diplomacy-buttons"><button id="make-alliance" class="secondary" ${state.alliancesOn?'':'disabled'}>Alliance · 3 turns</button><button id="make-ceasefire" class="secondary">Ceasefire · 1 turn</button></div>`:'<p>No active realms are available.</p>'}</div>`:''
     const nuclearAction=p?.isHuman&&state.nuclearPending===p.id?'<div class="action-card nuclear-prompt"><label>☢ Nuclear bomb ready</label><p>Click any enemy or rebel territory on the map. The connected blast group will be chosen automatically.</p></div>':''
-    const canEndTurn=Boolean(p?.isHuman&&(!window.MultiSync?.active||window.MultiSync.playerIndex===state.turn))
-    box.innerHTML=`${diplomacy}${nuclearAction}<div class="action-card"><label>Battle orders</label>${content}${canEndTurn?'<button class="primary" id="end-turn">End turn</button>':''}</div>`
+    const canEndTurn=Boolean(p?.isHuman&&(!window.MultiSync?.active||window.MultiSync.playerIndex===state.turn)),seconds=Math.max(0,Math.ceil((state.turnDeadline-Date.now())/1000))
+    box.innerHTML=`${diplomacy}${nuclearAction}<div class="action-card"><label>Battle orders</label>${content}${canEndTurn?`<div class="turn-countdown" data-turn-countdown>${seconds}s remaining</div><button class="primary" id="end-turn">End turn</button>`:''}</div>`
     if(canEndTurn) $('#end-turn').onclick=endTurn
     if(p?.isHuman&&targets.length){$('#diplomacy-target').onchange=e=>{state.diplomacyTarget=Number(e.target.value)};$('#make-alliance').onclick=()=>requestPact('alliance',$('#diplomacy-target').value);$('#make-ceasefire').onclick=()=>requestPact('ceasefire',$('#diplomacy-target').value)}
   } else box.innerHTML=''
@@ -690,7 +693,7 @@ function startGame() {
   assignConnectedRealms()
   assignRealmNames()
   if(window.MultiSync?.active)state.fastAI=true
-  Object.assign(state,{phase:'war',turn:0,turnCount:0,roundCount:0,alliances:[],ceasefires:[],pendingRenewals:[],diplomacyTarget:null,diplomacyOffers:[],diplomacySent:{},diplomacyAggression:{},attacksThisTurn:{},battleCounts:{},nuclearPending:null,paused:false,showPacts:Boolean(window.MultiSync?.active),selected:null,claimWinner:null,dice:[],battle:null,nuclearStrike:null,message:turnMessage(state.players[0])}); render();if(!state.players[0]?.isHuman)runAI()
+  Object.assign(state,{phase:'war',turn:0,turnCount:0,roundCount:0,turnDeadline:Date.now()+60000,alliances:[],ceasefires:[],pendingRenewals:[],diplomacyTarget:null,diplomacyOffers:[],diplomacySent:{},diplomacyAggression:{},attacksThisTurn:{},battleCounts:{},nuclearPending:null,paused:false,showPacts:Boolean(window.MultiSync?.active),selected:null,claimWinner:null,dice:[],battle:null,nuclearStrike:null,message:turnMessage(state.players[0])}); render();startTurnClock();if(!state.players[0]?.isHuman)runAI()
 }
 
 function assignRealmNames() {
@@ -848,14 +851,29 @@ function spawnRebellion(){
   territory.owner=null;territory.rebel=true;territory.attacked=true;territory.attacks=1
   return ` Rebels rose in ${territory.name}; conquer it to restore the realm.`
 }
+function clearTurnClock(){clearTimeout(turnClockTimeout);clearInterval(turnClockInterval);turnClockTimeout=null;turnClockInterval=null}
+function startTurnClock(){
+  clearTurnClock()
+  if(state.phase!=='war'||!state.turnDeadline)return
+  const turnId=state.turn
+  const update=()=>{
+    const seconds=Math.max(0,Math.ceil((state.turnDeadline-Date.now())/1000))
+    document.querySelectorAll('[data-turn-countdown]').forEach(node=>{node.textContent=`${seconds}s remaining`})
+    if(seconds<=0){clearTurnClock();if(window.MultiSync?.isHost&&state.phase==='war'&&state.turn===turnId&&state.players[turnId]?.isHuman)endTurn()}
+  }
+  update();turnClockInterval=setInterval(update,250)
+  if(window.MultiSync?.isHost&&state.players[turnId]?.isHuman)turnClockTimeout=setTimeout(update,Math.max(0,state.turnDeadline-Date.now()+20))
+}
 function endTurn(){
   if(window.MultiSync?.active&&!window.MultiSync.applyingRemote&&window.MultiSync.playerIndex!==state.turn)return
   if(window.MultiSync?.active&&!window.MultiSync.isHost&&!window.MultiSync.applyingRemote){window.MultiSync.sendAction({kind:'end-turn'});return}
+  clearTurnClock()
   clearTimeout(state.aiTimer);const endingPlayer=state.players[state.turn];if(endingPlayer?.isHuman)state.pendingRenewals=state.pendingRenewals.filter(pact=>!pact.key.split(':').map(Number).includes(endingPlayer.id));state.turnCount++;state.territories.forEach(t=>{t.attacked=false;t.attacks=0});state.attacksThisTurn={}
   const active=state.players.filter(player=>!player.eliminated),currentIndex=active.findIndex(player=>player.id===state.players[state.turn]?.id),roundComplete=currentIndex===active.length-1
   if(roundComplete){state.roundCount++;state.diplomacySent={};expireDiplomacy();state.diplomacyAggression={}}
   state.turn=active[(currentIndex+1)%active.length]?.id??state.turn
-  state.selected=null;state.battle=null;state.message=turnMessage(state.players[state.turn])+(roundComplete?spawnRebellion():'');render();runAI()
+  state.turnDeadline=Date.now()+60000
+  state.selected=null;state.battle=null;state.message=turnMessage(state.players[state.turn])+(roundComplete?spawnRebellion():'');render();startTurnClock();runAI()
 }
 function runAI(){const p=state.players[state.turn];if(state.phase!=='war'||!p||p.isHuman||state.paused)return;if(p.eliminated){endTurn();return}const thinkDelay=state.fastAI?35:800,finishDelay=state.fastAI?45:1000,noAttackDelay=state.fastAI?45:700;state.aiTimer=setTimeout(()=>{if(state.paused)return;expireDiplomacy();aiDiplomacy(p);const owned=state.territories.filter(t=>t.owner===p.id&&canAttack(t)),attacks=owned.flatMap(s=>s.neighbors.map(id=>state.territories.find(t=>t.id===id)).filter(t=>t&&t.owner!==p.id&&!isDiplomacyProtected(p.id,t.owner)).map(t=>({s,t})));if(attacks.length){const x=attacks[Math.floor(Math.random()*attacks.length)];resolveBattle(x.s.id,x.t.id,p.id);if(state.phase==='war')state.aiTimer=setTimeout(state.attackMode==='normal'?endTurn:runAI,state.nuclearStrike?2800:finishDelay)}else{state.message=state.fogOfWar?'Fog of war conceals enemy movements.':`${p.name} has no available border attacks.`;render();state.aiTimer=setTimeout(endTurn,noAttackDelay)}},thinkDelay)}
 
@@ -927,7 +945,7 @@ $('#load-file-input').onchange=event=>{const file=event.target.files?.[0];if(!fi
 $('#export-game').onclick=exportGame
 $('#delete-game').onclick=deleteGame
 document.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveGame()}})
-window.BorderlineGame={state,render,toggleMusic,async enableMusic(){if(!state.musicOn)await toggleMusic();else await startSelectedMusic()},prepareMultiplayer(room){const humans=room.slots.filter(Boolean).filter(slot=>slot.type==='human');state.humanCount=humans.length;state.playerCount=room.slots.length;state.playerNames=Array(33).fill('');room.slots.forEach((slot,index)=>{if(slot)state.playerNames[index]=slot.name});window.MultiSync.slotConfig=room.slots;Object.assign(state,{phase:'setup',claimWinner:null,selected:null,fastAI:true,paused:false});render()},applyRemote(snapshot){Object.assign(state,snapshot,{aiTimer:null});if(state.territories.length&&!document.querySelector('.country'))drawMap();render()}}
+window.BorderlineGame={state,render,toggleMusic,async enableMusic(){if(!state.musicOn)await toggleMusic();else await startSelectedMusic()},prepareMultiplayer(room){const humans=room.slots.filter(Boolean).filter(slot=>slot.type==='human');state.humanCount=humans.length;state.playerCount=room.slots.length;state.playerNames=Array(33).fill('');room.slots.forEach((slot,index)=>{if(slot)state.playerNames[index]=slot.name});window.MultiSync.slotConfig=room.slots;Object.assign(state,{phase:'setup',claimWinner:null,selected:null,fastAI:true,paused:false});render()},applyRemote(snapshot){Object.assign(state,snapshot,{aiTimer:null});if(state.territories.length&&!document.querySelector('.country'))drawMap();render();if(state.phase==='war')startTurnClock()}}
 window.addEventListener('multiplayer-action',event=>{
   if(!window.MultiSync?.isHost)return
   const action=event.detail
