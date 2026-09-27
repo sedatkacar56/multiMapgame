@@ -614,7 +614,7 @@ function requestPact(type,targetId){
   state.diplomacySent[sentKey]=true
   if(pactCount(current.id)>=2){state.message='Your realm already has the maximum of 2 diplomatic agreements.';render();return}
   const chance=type==='alliance'?.72:.84
-  if(target.isHuman){if(state.autoRejectOffers){state.message=`${target.name} is auto-rejecting offers.`;render();return}if(!state.diplomacyOffers.some(offer=>offer.from===current.id&&offer.to===target.id)){state.diplomacyOffers.push({from:current.id,to:target.id,type,until:state.roundCount+4});state.message=`${type} offer sent to ${target.name}.`}render();return}
+  if(target.isHuman){if(!state.diplomacyOffers.some(offer=>offer.from===current.id&&offer.to===target.id)){state.diplomacyOffers.push({from:current.id,to:target.id,type,until:state.roundCount+4});state.message=`${type} offer sent to ${target.name}.`}render();return}
   if(Math.random()<chance){if(formPact(type,current.id,target.id))state.message=`${target.name} accepted your ${type}.`;else state.message=`${target.name} cannot accept more alliances.`}
   else state.message=`${target.name} rejected your ${type}.`
   render()
@@ -638,7 +638,7 @@ function renderDiplomacyOffers(){
   const localId=window.MultiSync?.active?window.MultiSync.playerIndex:state.turn
   const current=state.players[localId], offers=state.phase==='war'&&current?.isHuman?state.diplomacyOffers.filter(offer=>offer.to===current.id):[]
   if(!offers.length){box.innerHTML='';return}
-  box.innerHTML=`<div class="offer-backdrop"><div class="offer-card"><span class="eyebrow">INCOMING DIPLOMACY</span><h2>${offers.length>1?'AI REALMS ARE MAKING OFFERS':'AN AI REALM IS MAKING AN OFFER'}</h2>${offers.map(offer=>{const offerIndex=state.diplomacyOffers.indexOf(offer);return `<div class="offer-row"><p><b>${escapeHtml(state.players.find(player=>player.id===offer.from)?.name||'AI realm')}</b> proposes a <strong>${offer.type}</strong>.</p><div class="offer-actions"><button class="secondary" data-offer-accept="${offerIndex}">Accept</button><button class="secondary" data-offer-reject="${offerIndex}">Reject</button></div></div>`}).join('')}</div></div>`
+  box.innerHTML=`<div class="offer-backdrop"><div class="offer-card"><span class="eyebrow">INCOMING DIPLOMACY</span><h2>${offers.length>1?'COMMANDERS ARE MAKING OFFERS':'A COMMANDER IS MAKING AN OFFER'}</h2>${offers.map(offer=>{const offerIndex=state.diplomacyOffers.indexOf(offer);return `<div class="offer-row"><p><b>${escapeHtml(state.players.find(player=>player.id===offer.from)?.name||'Commander')}</b> proposes a <strong>${offer.type}</strong>.</p><div class="offer-actions"><button class="secondary" data-offer-accept="${offerIndex}">Accept</button><button class="secondary" data-offer-reject="${offerIndex}">Reject</button></div></div>`}).join('')}</div></div>`
   box.querySelectorAll('[data-offer-accept]').forEach(button=>button.onclick=()=>acceptDiplomacyOffer(Number(button.dataset.offerAccept)))
   box.querySelectorAll('[data-offer-reject]').forEach(button=>button.onclick=()=>rejectDiplomacyOffer(Number(button.dataset.offerReject)))
 }
