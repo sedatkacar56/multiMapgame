@@ -4,7 +4,7 @@ const socketUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location
 let socket
 let room
 let playerId
-window.MultiSync = { active: false, isHost: false, applyingRemote: false, lobbyConfiguring: false, sendAction(action) { send('action', { action }) } }
+window.MultiSync = { active: false, isHost: false, applyingRemote: false, lobbyConfiguring: false, pendingPlayerCount: null, sendAction(action) { send('action', { action }) } }
 
 function send(type, payload = {}) { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type, ...payload })) }
 function html(value) { return String(value).replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character])) }

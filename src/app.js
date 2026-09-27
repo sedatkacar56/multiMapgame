@@ -947,7 +947,7 @@ $('#load-file-input').onchange=event=>{const file=event.target.files?.[0];if(!fi
 $('#export-game').onclick=exportGame
 $('#delete-game').onclick=deleteGame
 document.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveGame()}})
-window.BorderlineGame={state,render,toggleMusic,async enableMusic(){if(!state.musicOn)await toggleMusic();else await startSelectedMusic()},prepareMultiplayer(room){const humans=room.slots.filter(Boolean).filter(slot=>slot.type==='human');state.humanCount=humans.length;state.playerCount=room.slots.length;state.playerNames=Array(33).fill('');room.slots.forEach((slot,index)=>{if(slot)state.playerNames[index]=slot.name});window.MultiSync.slotConfig=room.slots;Object.assign(state,{phase:'setup',claimWinner:null,selected:null,fastAI:true,paused:false});render()},applyRemote(snapshot){Object.assign(state,snapshot,{aiTimer:null});if(state.phase==='war'&&!state.turnDeadline)state.turnDeadline=Date.now()+60000;if(state.territories.length&&!document.querySelector('.country'))drawMap();render();if(state.phase==='war')startTurnClock()}}
+window.BorderlineGame={state,render,toggleMusic,async enableMusic(){if(!state.musicOn)await toggleMusic();else await startSelectedMusic()},prepareMultiplayer(room){const humans=room.slots.filter(Boolean).filter(slot=>slot.type==='human'),configuredCount=Number(window.MultiSync.pendingPlayerCount)||room.slots.length;state.humanCount=humans.length;state.playerCount=Math.max(room.slots.length,configuredCount);state.playerNames=Array(33).fill('');room.slots.forEach((slot,index)=>{if(slot)state.playerNames[index]=slot.name});window.MultiSync.slotConfig=room.slots;Object.assign(state,{phase:'setup',claimWinner:null,selected:null,fastAI:true,paused:false});render()},applyRemote(snapshot){Object.assign(state,snapshot,{aiTimer:null});if(state.phase==='war'&&!state.turnDeadline)state.turnDeadline=Date.now()+60000;if(state.territories.length&&!document.querySelector('.country'))drawMap();render();if(state.phase==='war')startTurnClock()}}
 window.addEventListener('multiplayer-action',event=>{
   if(!window.MultiSync?.isHost)return
   const action=event.detail
@@ -977,4 +977,5 @@ window.addEventListener('multiplayer-action',event=>{
   }
 })
 document.querySelector('#root').insertAdjacentHTML('beforeend','<div class="loading" id="loader"><span class="spinner"></span>Drawing the frontiers…</div>')
+document.addEventListener('change',event=>{if(event.target?.id==='total'&&window.MultiSync)window.MultiSync.pendingPlayerCount=Number(event.target.value)})
 loadMap().then(()=>$('#loader')?.remove())
