@@ -201,7 +201,7 @@ function drawMap() {
 function updateLabels() {
   const button=$('#toggle-labels')
   if(button){button.classList.toggle('active',state.showLabels);button.setAttribute('aria-pressed',String(state.showLabels))}
-  const mobile=window.innerWidth<=800
+  const mobile=window.innerWidth<=900||window.innerHeight<=500
   const labels=[...document.querySelectorAll('.place-label')]
   const accepted=[]
   labels.sort((a,b)=>Number(b.dataset.area)-Number(a.dataset.area)).forEach(label=>{
@@ -257,7 +257,7 @@ function updatePlayerLabels() {
       .sort((a,b)=>Math.hypot(a[0]-middle[0],a[1]-middle[1])-Math.hypot(b[0]-middle[0],b[1]-middle[1]))
     return {player,owned,middle,candidates:unique,realmWidth,realmHeight,vertical:realmHeight>realmWidth*1.15,area:owned.reduce((sum,t)=>sum+t.mapArea,0)}
   }).filter(Boolean).sort((a,b)=>b.area-a.area)
-  const mobile=window.innerWidth<=800
+  const mobile=window.innerWidth<=900||window.innerHeight<=500
   const accepted=[]
   entries.forEach(({player,owned,candidates,realmWidth,realmHeight,vertical})=>{
     const words=player.name.trim().split(/\s+/)
