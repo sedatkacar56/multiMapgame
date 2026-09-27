@@ -444,7 +444,8 @@ function updateAllianceButtons(){
 }
 function updateAutoRejectButton(){const button=$('#toggle-auto-reject');if(button){button.textContent=`Auto-reject offers: ${state.autoRejectOffers?'On':'Off'}`;button.classList.toggle('active',state.autoRejectOffers);button.setAttribute('aria-pressed',String(state.autoRejectOffers))}}
 function updatePauseButton(){const button=$('#toggle-pause-ai');if(button){button.textContent=state.paused?'Resume AI':'Pause AI';button.classList.toggle('active',state.paused);button.setAttribute('aria-pressed',String(state.paused))}}
-function multiplayerSettingAllowed(){return !window.MultiSync?.active||(window.MultiSync.isHost&&state.phase==='setup')}
+function multiplayerSettingAllowed(){return Boolean(window.MultiSync?.lobbyConfiguring)||!window.MultiSync?.active||(window.MultiSync.isHost&&state.phase==='setup')}
+function refreshSetupOption(){if(state.phase==='setup'&&window.MultiSync?.lobbyConfiguring)renderModal()}
 
 function attackLimit(){return state.attackMode==='moderate'?3:Infinity}
 function canAttack(territory){return territory.attacks<1&&(state.attackMode!=='moderate'||(state.attacksThisTurn[territory.owner]||0)<attackLimit())}
@@ -869,13 +870,13 @@ $('#toggle-labels').onclick=()=>{state.showLabels=!state.showLabels;updateLabels
 $('#toggle-player-labels').onclick=()=>{state.showPlayerLabels=!state.showPlayerLabels;updatePlayerLabels()}
 $('#player-label-size').oninput=e=>{state.playerLabelSize=Number(e.target.value);updatePlayerLabels()}
 $('#toggle-fast-ai').onclick=()=>{if(!multiplayerSettingAllowed())return;state.fastAI=!state.fastAI;const button=$('#toggle-fast-ai');button.classList.toggle('active',state.fastAI);button.setAttribute('aria-pressed',String(state.fastAI));const player=state.players[state.turn];if(state.phase==='war'&&player&&!player.isHuman){clearTimeout(state.aiTimer);runAI()}}
-function toggleHardMode(){if(!multiplayerSettingAllowed())return;const modes=['normal','moderate','hard'];state.attackMode=modes[(modes.indexOf(state.attackMode)+1)%modes.length];if(state.attackMode==='hard')state.rebelsOn=true;updateHardModeButtons();updateRebelButtons();if(state.phase==='war')render()}
-function toggleStrengths(){if(!multiplayerSettingAllowed())return;state.strengthsOn=!state.strengthsOn;updateStrengthButtons();if(state.phase==='war')render()}
-function toggleCaptureAttack(){if(!multiplayerSettingAllowed())return;state.captureAttackOn=!state.captureAttackOn;updateCaptureAttackButtons();if(state.phase==='war')render()}
-function toggleRebels(){if(!multiplayerSettingAllowed())return;state.rebelsOn=!state.rebelsOn;updateRebelButtons();if(state.phase==='war')render()}
-function toggleNuclear(){if(!multiplayerSettingAllowed())return;state.nuclearOn=!state.nuclearOn;updateNuclearButton();if(state.phase==='war')render()}
-function toggleFog(){if(!multiplayerSettingAllowed())return;state.fogOfWar=!state.fogOfWar;updateFogButton();updateLabels();updatePlayerLabels();if(state.phase==='war')render()}
-function toggleAlliances(){if(!multiplayerSettingAllowed())return;state.alliancesOn=!state.alliancesOn;updateAllianceButtons();if(state.phase==='war')render()}
+function toggleHardMode(){if(!multiplayerSettingAllowed())return;const modes=['normal','moderate','hard'];state.attackMode=modes[(modes.indexOf(state.attackMode)+1)%modes.length];if(state.attackMode==='hard')state.rebelsOn=true;updateHardModeButtons();updateRebelButtons();if(state.phase==='war')render();else refreshSetupOption()}
+function toggleStrengths(){if(!multiplayerSettingAllowed())return;state.strengthsOn=!state.strengthsOn;updateStrengthButtons();if(state.phase==='war')render();else refreshSetupOption()}
+function toggleCaptureAttack(){if(!multiplayerSettingAllowed())return;state.captureAttackOn=!state.captureAttackOn;updateCaptureAttackButtons();if(state.phase==='war')render();else refreshSetupOption()}
+function toggleRebels(){if(!multiplayerSettingAllowed())return;state.rebelsOn=!state.rebelsOn;updateRebelButtons();if(state.phase==='war')render();else refreshSetupOption()}
+function toggleNuclear(){if(!multiplayerSettingAllowed())return;state.nuclearOn=!state.nuclearOn;updateNuclearButton();if(state.phase==='war')render();else refreshSetupOption()}
+function toggleFog(){if(!multiplayerSettingAllowed())return;state.fogOfWar=!state.fogOfWar;updateFogButton();updateLabels();updatePlayerLabels();if(state.phase==='war')render();else refreshSetupOption()}
+function toggleAlliances(){if(!multiplayerSettingAllowed())return;state.alliancesOn=!state.alliancesOn;updateAllianceButtons();if(state.phase==='war')render();else refreshSetupOption()}
 $('#toggle-hard-mode').onclick=toggleHardMode
 $('#toggle-strengths').onclick=toggleStrengths
 $('#strength-view').onchange=e=>{if(state.strengthsOn){state.strengthView=e.target.value;render()}}
