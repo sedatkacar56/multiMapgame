@@ -66,7 +66,7 @@ function orientGeometry(geometry) {
 }
 const state = {
   territories: [], players: [], humanCount: 1, playerCount: 4, phase: 'setup', turn: 0,
-  claimWinner: null, selected: null, dice: [], battle: null, message: 'Prepare your campaign.', aiTimer: null, fastAI: false, musicOn: false,
+  claimWinner: null, selected: null, dice: [], battle: null, message: 'Prepare your campaign.', aiTimer: null, fastAI: true, musicOn: false,
   turnCount: 0, roundCount: 0, alliances: [], ceasefires: [], pendingRenewals: [], diplomacyTarget: null, diplomacyOffers: [], diplomacySent: {}, diplomacyAggression: {}, attackMode: 'normal', attacksThisTurn: {}, musicStyle: 'campaign', strengthsOn: false, captureAttackOn: false, fogOfWar: false,
   showPacts: false, controlsHidden: false, panelHidden: false, rebelsOn: false, nuclearOn: false, nuclearStrike: null, nuclearTargeting: 'random', nuclearPending: null, battleCounts: {}, alliancesOn: true, autoRejectOffers: false, strengthView: 'off', paused: false, musicVolume: .65, attackAnimation: null,
   showLabels: true, showPlayerLabels: true,
@@ -524,7 +524,8 @@ function render() {
 function renderPacts(){
   const panel=$('#diplomacy-panel');if(!panel)return
   const button=$('#toggle-pacts');if(button){button.classList.toggle('active',state.showPacts);button.setAttribute('aria-pressed',String(state.showPacts))}
-  const humanIds=new Set(state.players.filter(player=>player.isHuman&&!player.eliminated).map(player=>player.id)),pacts=[
+  const viewerId=window.MultiSync?.active?window.MultiSync.playerIndex:null
+  const humanIds=new Set(viewerId===null?state.players.filter(player=>player.isHuman&&!player.eliminated).map(player=>player.id):[viewerId]),pacts=[
     ...state.alliances.filter(pact=>pact.until>state.roundCount).map(pact=>({...pact,type:'Alliance'})),
     ...state.ceasefires.filter(pact=>pact.until>state.roundCount).map(pact=>({...pact,type:'Ceasefire'}))
   ].map(pact=>{const ids=pact.key.split(':').map(Number),humanId=ids.find(id=>humanIds.has(id)),otherId=ids.find(id=>id!==humanId),human=state.players.find(player=>player.id===humanId),other=state.players.find(player=>player.id===otherId);return {...pact,human,other}}).filter(pact=>pact.human&&pact.other&&!pact.other.eliminated)
@@ -598,7 +599,7 @@ function formPact(type,first,second){
   state.pendingRenewals=state.pendingRenewals.filter(pact=>pact.key!==key)
   return true
 }
-function renewPact(type,key){const ids=key.split(':').map(Number);if(formPact(type==='Alliance'?'alliance':'ceasefire',ids[0],ids[1])){state.message='Pact renewed.';render()}}
+function renewPact(type,key){const ids=key.split(':').map(Number);if(window.MultiSync?.active&&!window.MultiSync.isHost&&!window.MultiSync.applyingRemote){if(!ids.includes(window.MultiSync.playerIndex))return;window.MultiSync.sendAction({kind:'pact-renew',pactType:type,key});return}if(formPact(type==='Alliance'?'alliance':'ceasefire',ids[0],ids[1])){state.message='Pact renewed.';render()}}
 function requestPact(type,targetId){
   const current=state.players[state.turn]
   const target=state.players.find(player=>player.id===Number(targetId))
@@ -688,7 +689,7 @@ function startGame() {
   state.players=Array.from({length:state.playerCount},(_,i)=>({id:i,name:multiplayerSlots?.[i]?.name||`Player ${i+1}`,color:COLORS[i%COLORS.length],isHuman:multiplayerSlots?multiplayerSlots[i]?.type==='human':i<state.humanCount,eliminated:false,kills:0,killedCountries:[],nuclearBombs:0,nuclearUsed:0}))
   assignConnectedRealms()
   assignRealmNames()
-  Object.assign(state,{phase:'war',turn:0,turnCount:0,roundCount:0,alliances:[],ceasefires:[],pendingRenewals:[],diplomacyTarget:null,diplomacyOffers:[],diplomacySent:{},diplomacyAggression:{},attacksThisTurn:{},battleCounts:{},nuclearPending:null,paused:false,selected:null,claimWinner:null,dice:[],battle:null,nuclearStrike:null,message:turnMessage(state.players[0])}); render()
+  Object.assign(state,{phase:'war',turn:0,turnCount:0,roundCount:0,alliances:[],ceasefires:[],pendingRenewals:[],diplomacyTarget:null,diplomacyOffers:[],diplomacySent:{},diplomacyAggression:{},attacksThisTurn:{},battleCounts:{},nuclearPending:null,paused:false,showPacts:Boolean(window.MultiSync?.active),selected:null,claimWinner:null,dice:[],battle:null,nuclearStrike:null,message:turnMessage(state.players[0])}); render();if(!state.players[0]?.isHuman)runAI()
 }
 
 function assignRealmNames() {
@@ -926,6 +927,6 @@ $('#export-game').onclick=exportGame
 $('#delete-game').onclick=deleteGame
 document.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveGame()}})
 window.BorderlineGame={state,render,toggleMusic,async enableMusic(){if(!state.musicOn)await toggleMusic();else await startSelectedMusic()},prepareMultiplayer(room){const humans=room.slots.filter(Boolean).filter(slot=>slot.type==='human');state.humanCount=humans.length;state.playerCount=room.slots.length;state.playerNames=Array(33).fill('');room.slots.forEach((slot,index)=>{if(slot)state.playerNames[index]=slot.name});window.MultiSync.slotConfig=room.slots;Object.assign(state,{phase:'setup',claimWinner:null,selected:null});render()},applyRemote(snapshot){Object.assign(state,snapshot,{aiTimer:null});if(state.territories.length&&!document.querySelector('.country'))drawMap();render()}}
-window.addEventListener('multiplayer-action',event=>{if(!window.MultiSync?.isHost)return;const action=event.detail;const senderIndex=action.playerId?window.MultiSync.playerIndexById?.[action.playerId]:undefined;if(action.kind==='pact-response'){const offerIndex=state.diplomacyOffers.findIndex(offer=>`${offer.from}:${offer.to}:${offer.type}`===action.offerKey);if(offerIndex<0||senderIndex!==state.diplomacyOffers[offerIndex].to)return;action.response==='accept'?acceptDiplomacyOffer(offerIndex,senderIndex):rejectDiplomacyOffer(offerIndex,senderIndex);return}if(senderIndex!==undefined&&senderIndex!==state.turn)return;if(action.kind==='territory-click')territoryClick(action.id);if(action.kind==='end-turn')endTurn();if(action.kind==='pact-request')requestPact(action.pactType,action.targetId)})
+window.addEventListener('multiplayer-action',event=>{if(!window.MultiSync?.isHost)return;const action=event.detail;const senderIndex=action.playerId?window.MultiSync.playerIndexById?.[action.playerId]:undefined;if(action.kind==='pact-response'){const offerIndex=state.diplomacyOffers.findIndex(offer=>`${offer.from}:${offer.to}:${offer.type}`===action.offerKey);if(offerIndex<0||senderIndex!==state.diplomacyOffers[offerIndex].to)return;action.response==='accept'?acceptDiplomacyOffer(offerIndex,senderIndex):rejectDiplomacyOffer(offerIndex,senderIndex);return}if(action.kind==='pact-renew'){const ids=String(action.key||'').split(':').map(Number);if(senderIndex===undefined||!ids.includes(senderIndex)||ids.length!==2)return;renewPact(action.pactType,action.key);return}if(senderIndex!==undefined&&senderIndex!==state.turn)return;if(action.kind==='territory-click')territoryClick(action.id);if(action.kind==='end-turn')endTurn();if(action.kind==='pact-request')requestPact(action.pactType,action.targetId)})
 document.querySelector('#root').insertAdjacentHTML('beforeend','<div class="loading" id="loader"><span class="spinner"></span>Drawing the frontiers…</div>')
 loadMap().then(()=>$('#loader')?.remove())
