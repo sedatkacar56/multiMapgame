@@ -108,7 +108,7 @@ document.querySelector('#root').innerHTML = `
           <button id="toggle-pacts" class="names-button" aria-pressed="false">Pacts</button><button id="toggle-alliances" class="names-button" aria-pressed="true">Alliances: On</button><button id="toggle-auto-reject" class="names-button" aria-pressed="false">Auto-reject offers: Off</button><button id="toggle-fullscreen" class="names-button" aria-pressed="false">Fullscreen</button><button id="toggle-panel" class="names-button" aria-pressed="false">Hide panel</button><button id="toggle-controls" class="names-button" aria-pressed="false">Hide controls</button>
           <label class="label-size-control">Name size <input id="player-label-size" type="range" min="4" max="14" step="1" value="9"><output id="player-label-size-value">9</output></label>
         </div><button id="show-controls" class="show-controls" aria-label="Show map controls">☰ Controls</button><button id="show-panel" class="show-panel" aria-label="Show players panel">☰ Players</button><div id="diplomacy-panel"></div>
-        <div id="turn-now" class="turn-now" aria-live="polite"></div><div class="compass"><i>N</i><span>✦</span></div><div class="map-caption">EUROPE · NORTH AFRICA · WESTERN ASIA</div>
+        <div class="compass"><i>N</i><span>✦</span></div><div class="map-caption">EUROPE · NORTH AFRICA · WESTERN ASIA</div>
         <div id="nuclear-alert" class="nuclear-alert" aria-live="assertive"></div>
       </div>
       <aside>
@@ -444,8 +444,7 @@ function updateAllianceButtons(){
 }
 function updateAutoRejectButton(){const button=$('#toggle-auto-reject');if(button){button.textContent=`Auto-reject offers: ${state.autoRejectOffers?'On':'Off'}`;button.classList.toggle('active',state.autoRejectOffers);button.setAttribute('aria-pressed',String(state.autoRejectOffers))}}
 function updatePauseButton(){const button=$('#toggle-pause-ai');if(button){button.textContent=state.paused?'Resume AI':'Pause AI';button.classList.toggle('active',state.paused);button.setAttribute('aria-pressed',String(state.paused))}}
-function multiplayerSettingAllowed(){return Boolean(window.MultiSync?.lobbyConfiguring)||!window.MultiSync?.active||(window.MultiSync.isHost&&state.phase==='setup')}
-function refreshSetupOption(){if(state.phase==='setup'&&window.MultiSync?.lobbyConfiguring)renderModal()}
+function multiplayerSettingAllowed(){return !window.MultiSync?.active||(window.MultiSync.isHost&&state.phase==='setup')}
 
 function attackLimit(){return state.attackMode==='moderate'?3:Infinity}
 function canAttack(territory){return territory.attacks<1&&(state.attackMode!=='moderate'||(state.attacksThisTurn[territory.owner]||0)<attackLimit())}
@@ -473,8 +472,6 @@ function render() {
   $('#territory-total').textContent = `${state.territories.length} territories`
   $('#phase-label').textContent = state.phase==='claim'?'CLAIMING ERA':state.phase==='war'?`TURN ${state.turn+1}`:'THE OLD WORLD'
   $('#message').textContent = state.phase==='setup'?'Awaiting commanders':state.phase==='gameover'?'Campaign complete':state.message
-  const turnNow=$('#turn-now'),turnPlayer=state.players[state.turn],localTurn=!window.MultiSync?.active||window.MultiSync.playerIndex===state.turn
-  if(turnNow){turnNow.classList.toggle('visible',state.phase==='war'&&Boolean(turnPlayer));turnNow.classList.toggle('your-turn',Boolean(turnPlayer?.isHuman&&localTurn));turnNow.textContent=turnPlayer?`TURN ${state.turn+1} · ${turnPlayer.name}${turnPlayer.isHuman&&localTurn?' · YOUR TURN':''}`:''}
   const fastButton=$('#toggle-fast-ai');if(fastButton){fastButton.classList.toggle('active',state.fastAI);fastButton.setAttribute('aria-pressed',String(state.fastAI))}
   updateHardModeButtons()
   updateStrengthButtons()
@@ -522,7 +519,6 @@ function render() {
   const controls=$('.map-controls'),hideButton=$('#toggle-controls'),showButton=$('#show-controls'),shell=$('.game-shell'),panelButton=$('#toggle-panel'),showPanel=$('#show-panel');if(controls)controls.classList.toggle('hidden',state.controlsHidden);if(hideButton)hideButton.setAttribute('aria-pressed',String(state.controlsHidden));if(showButton)showButton.classList.toggle('visible',state.controlsHidden);if(shell)shell.classList.toggle('panel-hidden',state.panelHidden);if(panelButton){panelButton.textContent=state.panelHidden?'Show panel':'Hide panel';panelButton.setAttribute('aria-pressed',String(state.panelHidden))}if(showPanel)showPanel.classList.toggle('visible',state.panelHidden)
   document.querySelector('main')?.classList.toggle('multiplayer-in-game',Boolean(window.MultiSync?.active&&state.phase==='war'))
   window.dispatchEvent(new CustomEvent('borderline-rendered'))
-  if(state.phase==='war'&&!state.paused&&!state.players[state.turn]?.isHuman&&!state.aiTimer)state.aiTimer=setTimeout(runAI,0)
 }
 
 function renderPacts(){
@@ -617,7 +613,7 @@ function requestPact(type,targetId){
   state.diplomacySent[sentKey]=true
   if(pactCount(current.id)>=2){state.message='Your realm already has the maximum of 2 diplomatic agreements.';render();return}
   const chance=type==='alliance'?.72:.84
-  if(target.isHuman){if(!state.diplomacyOffers.some(offer=>offer.from===current.id&&offer.to===target.id)){state.diplomacyOffers.push({from:current.id,to:target.id,type,until:state.roundCount+4});state.message=`${type} offer sent to ${target.name}.`}render();return}
+  if(target.isHuman){if(state.autoRejectOffers){state.message=`${target.name} is auto-rejecting offers.`;render();return}if(!state.diplomacyOffers.some(offer=>offer.from===current.id&&offer.to===target.id)){state.diplomacyOffers.push({from:current.id,to:target.id,type,until:state.roundCount+4});state.message=`${type} offer sent to ${target.name}.`}render();return}
   if(Math.random()<chance){if(formPact(type,current.id,target.id))state.message=`${target.name} accepted your ${type}.`;else state.message=`${target.name} cannot accept more alliances.`}
   else state.message=`${target.name} rejected your ${type}.`
   render()
@@ -641,7 +637,7 @@ function renderDiplomacyOffers(){
   const localId=window.MultiSync?.active?window.MultiSync.playerIndex:state.turn
   const current=state.players[localId], offers=state.phase==='war'&&current?.isHuman?state.diplomacyOffers.filter(offer=>offer.to===current.id):[]
   if(!offers.length){box.innerHTML='';return}
-  box.innerHTML=`<div class="offer-backdrop"><div class="offer-card"><span class="eyebrow">INCOMING DIPLOMACY</span><h2>${offers.length>1?'COMMANDERS ARE MAKING OFFERS':'A COMMANDER IS MAKING AN OFFER'}</h2>${offers.map(offer=>{const offerIndex=state.diplomacyOffers.indexOf(offer);return `<div class="offer-row"><p><b>${escapeHtml(state.players.find(player=>player.id===offer.from)?.name||'Commander')}</b> proposes a <strong>${offer.type}</strong>.</p><div class="offer-actions"><button class="secondary" data-offer-accept="${offerIndex}">Accept</button><button class="secondary" data-offer-reject="${offerIndex}">Reject</button></div></div>`}).join('')}</div></div>`
+  box.innerHTML=`<div class="offer-backdrop"><div class="offer-card"><span class="eyebrow">INCOMING DIPLOMACY</span><h2>${offers.length>1?'AI REALMS ARE MAKING OFFERS':'AN AI REALM IS MAKING AN OFFER'}</h2>${offers.map(offer=>{const offerIndex=state.diplomacyOffers.indexOf(offer);return `<div class="offer-row"><p><b>${escapeHtml(state.players.find(player=>player.id===offer.from)?.name||'AI realm')}</b> proposes a <strong>${offer.type}</strong>.</p><div class="offer-actions"><button class="secondary" data-offer-accept="${offerIndex}">Accept</button><button class="secondary" data-offer-reject="${offerIndex}">Reject</button></div></div>`}).join('')}</div></div>`
   box.querySelectorAll('[data-offer-accept]').forEach(button=>button.onclick=()=>acceptDiplomacyOffer(Number(button.dataset.offerAccept)))
   box.querySelectorAll('[data-offer-reject]').forEach(button=>button.onclick=()=>rejectDiplomacyOffer(Number(button.dataset.offerReject)))
 }
@@ -870,13 +866,13 @@ $('#toggle-labels').onclick=()=>{state.showLabels=!state.showLabels;updateLabels
 $('#toggle-player-labels').onclick=()=>{state.showPlayerLabels=!state.showPlayerLabels;updatePlayerLabels()}
 $('#player-label-size').oninput=e=>{state.playerLabelSize=Number(e.target.value);updatePlayerLabels()}
 $('#toggle-fast-ai').onclick=()=>{if(!multiplayerSettingAllowed())return;state.fastAI=!state.fastAI;const button=$('#toggle-fast-ai');button.classList.toggle('active',state.fastAI);button.setAttribute('aria-pressed',String(state.fastAI));const player=state.players[state.turn];if(state.phase==='war'&&player&&!player.isHuman){clearTimeout(state.aiTimer);runAI()}}
-function toggleHardMode(){if(!multiplayerSettingAllowed())return;const modes=['normal','moderate','hard'];state.attackMode=modes[(modes.indexOf(state.attackMode)+1)%modes.length];if(state.attackMode==='hard')state.rebelsOn=true;updateHardModeButtons();updateRebelButtons();if(state.phase==='war')render();else refreshSetupOption()}
-function toggleStrengths(){if(!multiplayerSettingAllowed())return;state.strengthsOn=!state.strengthsOn;updateStrengthButtons();if(state.phase==='war')render();else refreshSetupOption()}
-function toggleCaptureAttack(){if(!multiplayerSettingAllowed())return;state.captureAttackOn=!state.captureAttackOn;updateCaptureAttackButtons();if(state.phase==='war')render();else refreshSetupOption()}
-function toggleRebels(){if(!multiplayerSettingAllowed())return;state.rebelsOn=!state.rebelsOn;updateRebelButtons();if(state.phase==='war')render();else refreshSetupOption()}
-function toggleNuclear(){if(!multiplayerSettingAllowed())return;state.nuclearOn=!state.nuclearOn;updateNuclearButton();if(state.phase==='war')render();else refreshSetupOption()}
-function toggleFog(){if(!multiplayerSettingAllowed())return;state.fogOfWar=!state.fogOfWar;updateFogButton();updateLabels();updatePlayerLabels();if(state.phase==='war')render();else refreshSetupOption()}
-function toggleAlliances(){if(!multiplayerSettingAllowed())return;state.alliancesOn=!state.alliancesOn;updateAllianceButtons();if(state.phase==='war')render();else refreshSetupOption()}
+function toggleHardMode(){if(!multiplayerSettingAllowed())return;const modes=['normal','moderate','hard'];state.attackMode=modes[(modes.indexOf(state.attackMode)+1)%modes.length];if(state.attackMode==='hard')state.rebelsOn=true;updateHardModeButtons();updateRebelButtons();if(state.phase==='war')render()}
+function toggleStrengths(){if(!multiplayerSettingAllowed())return;state.strengthsOn=!state.strengthsOn;updateStrengthButtons();if(state.phase==='war')render()}
+function toggleCaptureAttack(){if(!multiplayerSettingAllowed())return;state.captureAttackOn=!state.captureAttackOn;updateCaptureAttackButtons();if(state.phase==='war')render()}
+function toggleRebels(){if(!multiplayerSettingAllowed())return;state.rebelsOn=!state.rebelsOn;updateRebelButtons();if(state.phase==='war')render()}
+function toggleNuclear(){if(!multiplayerSettingAllowed())return;state.nuclearOn=!state.nuclearOn;updateNuclearButton();if(state.phase==='war')render()}
+function toggleFog(){if(!multiplayerSettingAllowed())return;state.fogOfWar=!state.fogOfWar;updateFogButton();updateLabels();updatePlayerLabels();if(state.phase==='war')render()}
+function toggleAlliances(){if(!multiplayerSettingAllowed())return;state.alliancesOn=!state.alliancesOn;updateAllianceButtons();if(state.phase==='war')render()}
 $('#toggle-hard-mode').onclick=toggleHardMode
 $('#toggle-strengths').onclick=toggleStrengths
 $('#strength-view').onchange=e=>{if(state.strengthsOn){state.strengthView=e.target.value;render()}}
@@ -930,7 +926,7 @@ $('#load-file-input').onchange=event=>{const file=event.target.files?.[0];if(!fi
 $('#export-game').onclick=exportGame
 $('#delete-game').onclick=deleteGame
 document.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveGame()}})
-window.BorderlineGame={state,render,toggleMusic,toggleStrengths,toggleCaptureAttack,toggleRebels,toggleFog,toggleNuclear,toggleAlliances,toggleHardMode,async enableMusic(){if(!state.musicOn)await toggleMusic();else await startSelectedMusic()},prepareMultiplayer(room){const humans=room.slots.filter(Boolean).filter(slot=>slot.type==='human');state.humanCount=humans.length;state.playerCount=room.slots.length;state.playerNames=Array(33).fill('');room.slots.forEach((slot,index)=>{if(slot)state.playerNames[index]=slot.name});state.fastAI=true;window.MultiSync.slotConfig=room.slots;Object.assign(state,{phase:'setup',claimWinner:null,selected:null});render()},applyRemote(snapshot){Object.assign(state,snapshot,{aiTimer:null});if(state.territories.length&&!document.querySelector('.country'))drawMap();render()}}
+window.BorderlineGame={state,render,toggleMusic,async enableMusic(){if(!state.musicOn)await toggleMusic();else await startSelectedMusic()},prepareMultiplayer(room){const humans=room.slots.filter(Boolean).filter(slot=>slot.type==='human');state.humanCount=humans.length;state.playerCount=room.slots.length;state.playerNames=Array(33).fill('');room.slots.forEach((slot,index)=>{if(slot)state.playerNames[index]=slot.name});window.MultiSync.slotConfig=room.slots;Object.assign(state,{phase:'setup',claimWinner:null,selected:null});render()},applyRemote(snapshot){Object.assign(state,snapshot,{aiTimer:null});if(state.territories.length&&!document.querySelector('.country'))drawMap();render()}}
 window.addEventListener('multiplayer-action',event=>{if(!window.MultiSync?.isHost)return;const action=event.detail;const senderIndex=action.playerId?window.MultiSync.playerIndexById?.[action.playerId]:undefined;if(action.kind==='pact-response'){const offerIndex=state.diplomacyOffers.findIndex(offer=>`${offer.from}:${offer.to}:${offer.type}`===action.offerKey);if(offerIndex<0||senderIndex!==state.diplomacyOffers[offerIndex].to)return;action.response==='accept'?acceptDiplomacyOffer(offerIndex,senderIndex):rejectDiplomacyOffer(offerIndex,senderIndex);return}if(action.kind==='pact-renew'){const ids=String(action.key||'').split(':').map(Number);if(senderIndex===undefined||!ids.includes(senderIndex)||ids.length!==2)return;renewPact(action.pactType,action.key);return}if(senderIndex!==undefined&&senderIndex!==state.turn)return;if(action.kind==='territory-click')territoryClick(action.id);if(action.kind==='end-turn')endTurn();if(action.kind==='pact-request')requestPact(action.pactType,action.targetId)})
 document.querySelector('#root').insertAdjacentHTML('beforeend','<div class="loading" id="loader"><span class="spinner"></span>Drawing the frontiers…</div>')
 loadMap().then(()=>$('#loader')?.remove())

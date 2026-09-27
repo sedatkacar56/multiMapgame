@@ -8,9 +8,6 @@ import { WebSocketServer } from 'ws'
 const root = fileURLToPath(new URL('.', import.meta.url))
 const port = Number(process.env.PORT || 4173)
 const rooms = new Map()
-const MAX_PLAYERS = 33
-const MAX_HUMANS = 3
-const MAX_AI = 30
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.mp3': 'audio/mpeg', '.mp4': 'video/mp4' }
 
 function send(socket, message) { if (socket.readyState === 1) socket.send(JSON.stringify(message)) }
@@ -19,13 +16,12 @@ function broadcast(room, message) { room.clients.forEach(client => send(client, 
 function createRoom(hostName) {
   let code
   do code = Math.random().toString(36).slice(2, 8).toUpperCase(); while (rooms.has(code))
-  const room = { code, hostId: randomUUID(), started: false, clients: new Set(), slots: Array(MAX_PLAYERS).fill(null), state: null }
+  const room = { code, hostId: randomUUID(), started: false, clients: new Set(), slots: [null, null, null], state: null }
   room.slots[0] = { id: room.hostId, name: hostName || 'Commander 1', type: 'human', socket: null }
   rooms.set(code, room)
   return room
 }
 function joinRoom(room, name, type = 'human') {
-  if (type !== 'ai' && room.slots.filter(slot => slot?.type === 'human').length >= MAX_HUMANS) return null
   const index = room.slots.findIndex(slot => !slot)
   if (index < 0) return null
   const player = { id: randomUUID(), name: name || `Commander ${index + 1}`, type: type === 'ai' ? 'ai' : 'human', socket: null }
@@ -50,17 +46,14 @@ websocket.on('connection', socket => {
     }
     if (message.type === 'join') {
       const room = rooms.get(String(message.code || '').toUpperCase()); if (!room || room.started) { send(socket, { type: 'error', message: 'That room is unavailable.' }); return }
-      if (room.slots.filter(Boolean).length >= MAX_PLAYERS) { send(socket, { type: 'error', message: 'This room has reached 33 commanders.' }); return }
-      if (room.slots.filter(slot => slot?.type === 'human').length >= MAX_HUMANS) { send(socket, { type: 'error', message: 'This room already has the maximum of 3 human commanders.' }); return }
-      const player = joinRoom(room, message.name, 'human'); if (!player) { send(socket, { type: 'error', message: 'This room cannot accept another human commander.' }); return }
+      const player = joinRoom(room, message.name, 'human'); if (!player) { send(socket, { type: 'error', message: 'That room is full.' }); return }
       player.socket = socket; socket.room = room; socket.playerId = player.id; room.clients.add(socket); send(socket, { type: 'joined', playerId: socket.playerId, room: publicRoom(room) }); broadcast(room, { type: 'lobby', room: publicRoom(room) }); return
     }
     const room = socket.room, player = room?.slots.find(slot => slot?.id === socket.playerId)
     if (!room || !player) { send(socket, { type: 'error', message: 'Join a room first.' }); return }
     if (message.type === 'add-ai') {
       if (socket.playerId !== room.hostId || room.started) return
-      if (room.slots.filter(slot => slot?.type === 'ai').length >= MAX_AI || room.slots.filter(Boolean).length >= MAX_PLAYERS) { send(socket, { type: 'error', message: 'Maximum reached: 30 AI or 33 total commanders.' }); return }
-      const ai = joinRoom(room, message.name, 'ai'); if (!ai) { send(socket, { type: 'error', message: 'No commander slot is available.' }); return }
+      const ai = joinRoom(room, message.name, 'ai'); if (!ai) { send(socket, { type: 'error', message: 'All three slots are full.' }); return }
       broadcast(room, { type: 'lobby', room: publicRoom(room) }); return
     }
     if (message.type === 'rename') {
@@ -75,8 +68,8 @@ websocket.on('connection', socket => {
       broadcast(room, { type: 'lobby', room: publicRoom(room) }); return
     }
     if (message.type === 'start') {
-      if (socket.playerId !== room.hostId || room.started || room.slots.filter(Boolean).length < 2) return
-      room.started = true; room.slots = room.slots.filter(Boolean); room.state = { turn: 0, phase: 'claim', revision: 0 }; broadcast(room, { type: 'started', room: publicRoom(room), state: room.state }); return
+      if (socket.playerId !== room.hostId || room.started || room.slots.some(slot => !slot)) return
+      room.started = true; room.state = { turn: 0, phase: 'claim', revision: 0 }; broadcast(room, { type: 'started', room: publicRoom(room), state: room.state }); return
     }
     if (message.type === 'state') {
       if (socket.playerId !== room.hostId || !message.state) return
