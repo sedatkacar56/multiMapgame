@@ -2,6 +2,8 @@
 
 This repository is the separate online version of the campaign game. The original local project is not modified.
 
+For a complete handoff covering both repositories, deployment, architecture, and safe-change rules, read [`PROJECT_SUMMARY.md`](./PROJECT_SUMMARY.md) first.
+
 ## Current multiplayer foundation
 
 - Three player slots per room.
