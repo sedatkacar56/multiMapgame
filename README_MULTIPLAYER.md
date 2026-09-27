@@ -9,6 +9,8 @@ This repository is the separate online version of the campaign game. The origina
 - Other players join with that code.
 - The host can fill open slots with AI commanders.
 - The server owns the room and exposes a revisioned shared state channel.
+- Human map clicks and End Turn actions are relayed to the host.
+- The host broadcasts the authoritative map, battle, and turn state to every client.
 
 ## Run locally
 
@@ -17,4 +19,4 @@ npm install
 npm start
 ```
 
-Open `http://localhost:4173`. The game client and lobby integration will be connected to the shared state in the next multiplayer pass.
+Open `http://localhost:4173`. Create a room in one browser and join it from other browsers using the displayed code.

@@ -10,7 +10,7 @@ const port = Number(process.env.PORT || 4173)
 const rooms = new Map()
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.mp3': 'audio/mpeg', '.mp4': 'video/mp4' }
 
-function send(socket, message) { if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message)) }
+function send(socket, message) { if (socket.readyState === 1) socket.send(JSON.stringify(message)) }
 function publicRoom(room) { return { code: room.code, hostId: room.hostId, started: room.started, slots: room.slots.map(slot => slot && ({ id: slot.id, name: slot.name, type: slot.type, connected: Boolean(slot.socket) })) } }
 function broadcast(room, message) { room.clients.forEach(client => send(client, message)) }
 function createRoom(hostName) {
