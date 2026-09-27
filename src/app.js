@@ -108,7 +108,7 @@ document.querySelector('#root').innerHTML = `
           <button id="toggle-pacts" class="names-button" aria-pressed="false">Pacts</button><button id="toggle-alliances" class="names-button" aria-pressed="true">Alliances: On</button><button id="toggle-auto-reject" class="names-button" aria-pressed="false">Auto-reject offers: Off</button><button id="toggle-fullscreen" class="names-button" aria-pressed="false">Fullscreen</button><button id="toggle-panel" class="names-button" aria-pressed="false">Hide panel</button><button id="toggle-controls" class="names-button" aria-pressed="false">Hide controls</button>
           <label class="label-size-control">Name size <input id="player-label-size" type="range" min="4" max="14" step="1" value="9"><output id="player-label-size-value">9</output></label>
         </div><button id="show-controls" class="show-controls" aria-label="Show map controls">☰ Controls</button><button id="show-panel" class="show-panel" aria-label="Show players panel">☰ Players</button><div id="diplomacy-panel"></div>
-        <div class="compass"><i>N</i><span>✦</span></div><div class="map-caption">EUROPE · NORTH AFRICA · WESTERN ASIA</div>
+        <div id="turn-now" class="turn-now" aria-live="polite"></div><div class="compass"><i>N</i><span>✦</span></div><div class="map-caption">EUROPE · NORTH AFRICA · WESTERN ASIA</div>
         <div id="nuclear-alert" class="nuclear-alert" aria-live="assertive"></div>
       </div>
       <aside>
@@ -472,6 +472,8 @@ function render() {
   $('#territory-total').textContent = `${state.territories.length} territories`
   $('#phase-label').textContent = state.phase==='claim'?'CLAIMING ERA':state.phase==='war'?`TURN ${state.turn+1}`:'THE OLD WORLD'
   $('#message').textContent = state.phase==='setup'?'Awaiting commanders':state.phase==='gameover'?'Campaign complete':state.message
+  const turnNow=$('#turn-now'),turnPlayer=state.players[state.turn],localTurn=!window.MultiSync?.active||window.MultiSync.playerIndex===state.turn
+  if(turnNow){turnNow.classList.toggle('visible',state.phase==='war'&&Boolean(turnPlayer));turnNow.classList.toggle('your-turn',Boolean(turnPlayer?.isHuman&&localTurn));turnNow.textContent=turnPlayer?`TURN ${state.turn+1} · ${turnPlayer.name}${turnPlayer.isHuman&&localTurn?' · YOUR TURN':''}`:''}
   const fastButton=$('#toggle-fast-ai');if(fastButton){fastButton.classList.toggle('active',state.fastAI);fastButton.setAttribute('aria-pressed',String(state.fastAI))}
   updateHardModeButtons()
   updateStrengthButtons()
