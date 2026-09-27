@@ -68,7 +68,7 @@ websocket.on('connection', socket => {
       broadcast(room, { type: 'lobby', room: publicRoom(room) }); return
     }
     if (message.type === 'start') {
-      if (socket.playerId !== room.hostId || room.started || room.slots.some(slot => !slot)) return
+      if (socket.playerId !== room.hostId || room.started || room.slots.filter(slot => slot?.type === 'human').length < 2) return
       room.slots = [...room.slots.filter(slot => slot?.type === 'human'), ...room.slots.filter(slot => slot?.type === 'ai')]
       room.started = true; room.state = { turn: 0, phase: 'claim', revision: 0 }; broadcast(room, { type: 'started', room: publicRoom(room), state: room.state }); return
     }
