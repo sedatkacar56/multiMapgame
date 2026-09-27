@@ -83,7 +83,7 @@ document.querySelector('#root').innerHTML = `
   <main>
     <header>
       <div class="brand"><span class="brand-mark">BD</span><div><b>Borderline</b><em>Dominion</em></div></div>
-      <div class="turn-banner"><span id="phase-label">THE OLD WORLD</span><strong id="message">Awaiting commanders</strong></div>
+      <div class="turn-banner"><span id="phase-label">THE OLD WORLD</span><strong id="message">Awaiting commanders</strong><small data-turn-countdown></small></div>
       <div class="header-actions"><button class="ghost" id="save-game">Save</button><button class="ghost" id="load-game">Load</button><button class="ghost" id="load-file">Load file</button><button class="ghost" id="export-game">Export</button><button class="ghost" id="delete-game">Delete</button><button class="ghost" id="new-game">New game</button><input id="load-file-input" type="file" accept="application/json,.json" style="display:none" /></div>
     </header>
     <section class="game-shell">
@@ -860,10 +860,10 @@ function startTurnClock(){
   const update=()=>{
     const seconds=Math.max(0,Math.ceil((state.turnDeadline-Date.now())/1000))
     document.querySelectorAll('[data-turn-countdown]').forEach(node=>{node.textContent=`${seconds}s remaining`})
-    if(seconds<=0){clearTurnClock();if(window.MultiSync?.isHost&&state.phase==='war'&&state.turn===turnId&&state.players[turnId]?.isHuman)endTurn()}
+    if(seconds<=0){clearTurnClock();if(window.MultiSync?.isHost&&state.phase==='war'&&state.turn===turnId)endTurn()}
   }
   update();turnClockInterval=setInterval(update,250)
-  if(window.MultiSync?.isHost&&state.players[turnId]?.isHuman)turnClockTimeout=setTimeout(update,Math.max(0,state.turnDeadline-Date.now()+20))
+  if(window.MultiSync?.isHost)turnClockTimeout=setTimeout(update,Math.max(0,state.turnDeadline-Date.now()+20))
 }
 function endTurn(){
   if(window.MultiSync?.active&&!window.MultiSync.applyingRemote&&window.MultiSync.playerIndex!==state.turn)return
