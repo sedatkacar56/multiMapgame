@@ -860,13 +860,13 @@ function startTurnClock(){
   const update=()=>{
     const seconds=Math.max(0,Math.ceil((state.turnDeadline-Date.now())/1000))
     document.querySelectorAll('[data-turn-countdown]').forEach(node=>{node.textContent=`${seconds}s remaining`})
-    if(seconds<=0){clearTurnClock();if(window.MultiSync?.isHost&&state.phase==='war'&&state.turn===turnId)endTurn()}
+    if(seconds<=0){clearTurnClock();if(window.MultiSync?.isHost&&state.phase==='war'&&state.turn===turnId)endTurn(true)}
   }
   update();turnClockInterval=setInterval(update,250)
   if(window.MultiSync?.isHost)turnClockTimeout=setTimeout(update,Math.max(0,state.turnDeadline-Date.now()+20))
 }
-function endTurn(){
-  if(window.MultiSync?.active&&!window.MultiSync.applyingRemote&&window.MultiSync.playerIndex!==state.turn)return
+function endTurn(force=false){
+  if(window.MultiSync?.active&&!window.MultiSync.applyingRemote&&!force&&window.MultiSync.playerIndex!==state.turn)return
   if(window.MultiSync?.active&&!window.MultiSync.isHost&&!window.MultiSync.applyingRemote){window.MultiSync.sendAction({kind:'end-turn'});return}
   clearTurnClock()
   clearTimeout(state.aiTimer);const endingPlayer=state.players[state.turn];if(endingPlayer?.isHuman)state.pendingRenewals=state.pendingRenewals.filter(pact=>!pact.key.split(':').map(Number).includes(endingPlayer.id));state.turnCount++;state.territories.forEach(t=>{t.attacked=false;t.attacks=0});state.attacksThisTurn={}
@@ -877,7 +877,7 @@ function endTurn(){
   state.selected=null;state.battle=null;state.message=turnMessage(state.players[state.turn])+(roundComplete?spawnRebellion():'');render();startTurnClock();runAI()
 }
 function isMultiplayerAI(player){return Boolean(player&&window.MultiSync?.active&&window.MultiSync.isHost&&(window.MultiSync.slotConfig?.[player.id]?.type==='ai'||!player.isHuman))}
-function runAI(){const p=state.players[state.turn],aiTurn=isMultiplayerAI(p)||(!window.MultiSync?.active&&p&&!p.isHuman);if(state.phase!=='war'||!p||!aiTurn)return;if(state.paused&&window.MultiSync?.active)state.paused=false;if(p.eliminated){endTurn();return}const thinkDelay=state.fastAI?35:800,finishDelay=state.fastAI?45:1000,noAttackDelay=state.fastAI?45:700;state.aiTimer=setTimeout(()=>{if(state.paused)return;expireDiplomacy();aiDiplomacy(p);const owned=state.territories.filter(t=>t.owner===p.id&&canAttack(t)),attacks=owned.flatMap(s=>s.neighbors.map(id=>state.territories.find(t=>t.id===id)).filter(t=>t&&t.owner!==p.id&&!isDiplomacyProtected(p.id,t.owner)).map(t=>({s,t})));if(attacks.length){const x=attacks[Math.floor(Math.random()*attacks.length)];resolveBattle(x.s.id,x.t.id,p.id);if(state.phase==='war')state.aiTimer=setTimeout(state.attackMode==='normal'?endTurn:runAI,state.nuclearStrike?2800:finishDelay)}else{state.message=state.fogOfWar?'Fog of war conceals enemy movements.':`${p.name} has no available border attacks.`;render();state.aiTimer=setTimeout(endTurn,noAttackDelay)}},thinkDelay)}
+function runAI(){const p=state.players[state.turn],aiTurn=isMultiplayerAI(p)||(!window.MultiSync?.active&&p&&!p.isHuman);if(state.phase!=='war'||!p||!aiTurn)return;if(state.paused&&window.MultiSync?.active)state.paused=false;if(p.eliminated){endTurn(true);return}const thinkDelay=state.fastAI?35:800,finishDelay=state.fastAI?45:1000,noAttackDelay=state.fastAI?45:700;state.aiTimer=setTimeout(()=>{if(state.paused)return;expireDiplomacy();aiDiplomacy(p);const owned=state.territories.filter(t=>t.owner===p.id&&canAttack(t)),attacks=owned.flatMap(s=>s.neighbors.map(id=>state.territories.find(t=>t.id===id)).filter(t=>t&&t.owner!==p.id&&!isDiplomacyProtected(p.id,t.owner)).map(t=>({s,t})));if(attacks.length){const x=attacks[Math.floor(Math.random()*attacks.length)];resolveBattle(x.s.id,x.t.id,p.id);if(state.phase==='war')state.aiTimer=setTimeout(state.attackMode==='normal'?()=>endTurn(true):runAI,state.nuclearStrike?2800:finishDelay)}else{state.message=state.fogOfWar?'Fog of war conceals enemy movements.':`${p.name} has no available border attacks.`;render();state.aiTimer=setTimeout(()=>endTurn(true),noAttackDelay)}},thinkDelay)}
 
 $('#new-game').onclick=()=>{clearTimeout(state.aiTimer);state.phase='setup';render()}
 $('#zoom-in').onclick=()=>changeZoom(1.5)
