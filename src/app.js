@@ -436,7 +436,7 @@ function updateRebelButtons(){
 }
 function updateNuclearButton(){const button=$('#setup-nuclear');if(button){button.textContent=`Nuclear bombs: ${state.nuclearOn?'On':'Off'}`;button.classList.toggle('active',state.nuclearOn);button.setAttribute('aria-pressed',String(state.nuclearOn))}}
 function updateFogButton(){const label=`Fog of war: ${state.fogOfWar?'On':'Off'}`;const button=$('#toggle-fog');if(button){button.textContent=label;button.classList.toggle('active',state.fogOfWar);button.setAttribute('aria-pressed',String(state.fogOfWar))}const setup=$('#setup-fog');if(setup){setup.textContent=label;setup.classList.toggle('active',state.fogOfWar);setup.setAttribute('aria-pressed',String(state.fogOfWar))}}
-function ensurePlayerLimitOptions(){if(state.phase!=='setup')return;const select=$('#total');if(!select)return;for(let count=21;count<=33;count++){if(!select.querySelector(`option[value="${count}"]`))select.insertAdjacentHTML('beforeend',`<option value="${count}">${count} players</option>`)}select.value=String(state.playerCount)}
+function ensurePlayerLimitOptions(){if(state.phase!=='setup')return;const select=$('#total');if(!select)return;if(window.MultiSync?.active&&!select.querySelector('option[value="2"]'))select.insertAdjacentHTML('afterbegin','<option value="2">2 players</option>');for(let count=21;count<=33;count++){if(!select.querySelector(`option[value="${count}"]`))select.insertAdjacentHTML('beforeend',`<option value="${count}">${count} players</option>`)}select.value=String(state.playerCount)}
 document.addEventListener('change',event=>{if(event.target?.id==='total')setTimeout(ensurePlayerLimitOptions,0)})
 function updateAllianceButtons(){
   const label=`Alliances: ${state.alliancesOn?'On':'Off'}`
@@ -876,7 +876,7 @@ function endTurn(){
   state.turnDeadline=Date.now()+60000
   state.selected=null;state.battle=null;state.message=turnMessage(state.players[state.turn])+(roundComplete?spawnRebellion():'');render();startTurnClock();runAI()
 }
-function isMultiplayerAI(player){return Boolean(player&&window.MultiSync?.active&&window.MultiSync.isHost&&window.MultiSync.slotConfig?.[player.id]?.type==='ai')}
+function isMultiplayerAI(player){return Boolean(player&&window.MultiSync?.active&&window.MultiSync.isHost&&(window.MultiSync.slotConfig?.[player.id]?.type==='ai'||!player.isHuman))}
 function runAI(){const p=state.players[state.turn],aiTurn=isMultiplayerAI(p)||(!window.MultiSync?.active&&p&&!p.isHuman);if(state.phase!=='war'||!p||!aiTurn)return;if(state.paused&&window.MultiSync?.active)state.paused=false;if(p.eliminated){endTurn();return}const thinkDelay=state.fastAI?35:800,finishDelay=state.fastAI?45:1000,noAttackDelay=state.fastAI?45:700;state.aiTimer=setTimeout(()=>{if(state.paused)return;expireDiplomacy();aiDiplomacy(p);const owned=state.territories.filter(t=>t.owner===p.id&&canAttack(t)),attacks=owned.flatMap(s=>s.neighbors.map(id=>state.territories.find(t=>t.id===id)).filter(t=>t&&t.owner!==p.id&&!isDiplomacyProtected(p.id,t.owner)).map(t=>({s,t})));if(attacks.length){const x=attacks[Math.floor(Math.random()*attacks.length)];resolveBattle(x.s.id,x.t.id,p.id);if(state.phase==='war')state.aiTimer=setTimeout(state.attackMode==='normal'?endTurn:runAI,state.nuclearStrike?2800:finishDelay)}else{state.message=state.fogOfWar?'Fog of war conceals enemy movements.':`${p.name} has no available border attacks.`;render();state.aiTimer=setTimeout(endTurn,noAttackDelay)}},thinkDelay)}
 
 $('#new-game').onclick=()=>{clearTimeout(state.aiTimer);state.phase='setup';render()}
