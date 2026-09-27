@@ -77,4 +77,4 @@ websocket.on('connection', socket => {
   })
   socket.on('close', () => { const room = socket.room; if (!room) return; const slot = room.slots.find(player => player?.id === socket.playerId); if (slot) slot.socket = null; room.clients.delete(socket); if (!room.clients.size) rooms.delete(room.code); else broadcast(room, { type: 'lobby', room: publicRoom(room) }) })
 })
-server.listen(port, () => console.log(`MultiMapGame server listening on http://localhost:${port}`))
+server.listen(port, '0.0.0.0', () => console.log(`MultiMapGame server listening on port ${port}`))
