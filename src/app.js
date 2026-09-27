@@ -238,13 +238,13 @@ function updatePlayerLabels() {
   if(!group)return
   const ownershipKey=state.players.map(player=>`${player.id}:${state.territories.filter(t=>t.owner===player.id).map(t=>t.id).join(',')}`).join('|')
   const viewKey=`${currentZoom.k.toFixed(3)},${currentZoom.x.toFixed(1)},${currentZoom.y.toFixed(1)}`
-  const labelKey=`${state.showPlayerLabels}|${state.fogOfWar}|${state.turn}|${state.playerLabelSize}|${viewKey}|${ownershipKey}`
+  const labelKey=`${state.showPlayerLabels}|${state.fogOfWar}|${window.MultiSync?.active?window.MultiSync.playerIndex:'local'}|${state.turn}|${state.playerLabelSize}|${viewKey}|${ownershipKey}`
   if(group.dataset.labelKey===labelKey)return
   group.dataset.labelKey=labelKey
   group.innerHTML=''
   if(!state.showPlayerLabels||!state.players.length)return
   const entries=state.players.map(player=>{
-    if(state.fogOfWar&&state.phase==='war'&&!player.isHuman)return null
+    if(state.fogOfWar&&state.phase==='war'&&(!player.isHuman||(window.MultiSync?.active&&player.id!==window.MultiSync.playerIndex)))return null
     const owned=largestLandComponent(player.id)
     if(!owned.length)return null
     const bounds=owned.reduce((box,t)=>[[Math.min(box[0][0],t.mapBounds[0][0]),Math.min(box[0][1],t.mapBounds[0][1])],[Math.max(box[1][0],t.mapBounds[1][0]),Math.max(box[1][1],t.mapBounds[1][1])]],[[Infinity,Infinity],[-Infinity,-Infinity]])
@@ -490,7 +490,7 @@ function render() {
   const quick=$('#player-quick'),currentPlayer=state.players[state.turn],currentAlliances=currentPlayer?state.alliances.filter(pact=>pact.key.split(':').map(Number).includes(currentPlayer.id)&&pact.until>state.roundCount).map(pact=>{const otherId=pact.key.split(':').map(Number).find(id=>id!==currentPlayer.id);return state.players.find(player=>player.id===otherId)}).filter(Boolean):[]
   const localTurn=Boolean(!window.MultiSync?.active||window.MultiSync.playerIndex===state.turn)
   if(quick){quick.innerHTML=state.phase==='war'&&currentPlayer?.isHuman&&localTurn?`<button class="primary panel-end-turn" id="panel-end-turn">End turn</button><label class="panel-alliance-select">Alliances<select id="panel-allies"><option value="">${currentAlliances.length?'Select allied country':'No active alliances'}</option>${currentAlliances.map(player=>`<option value="${player.id}">${escapeHtml(player.name)}</option>`).join('')}</select></label>`:'';const endButton=$('#panel-end-turn');if(endButton)endButton.onclick=endTurn;const allies=$('#panel-allies');if(allies)allies.onchange=event=>{if(event.target.value){state.diplomacyTarget=Number(event.target.value);state.message=`${state.players[state.diplomacyTarget].name} selected.`;render()}}}
-  const playerOrder=[...state.players].filter(player=>!state.fogOfWar||player.isHuman).sort((a,b)=>Number(a.eliminated)-Number(b.eliminated)||state.territories.filter(t=>t.owner===b.id).length-state.territories.filter(t=>t.owner===a.id).length||a.id-b.id)
+  const playerOrder=[...state.players].filter(player=>!state.fogOfWar||!window.MultiSync?.active||player.id===window.MultiSync.playerIndex).sort((a,b)=>Number(a.eliminated)-Number(b.eliminated)||state.territories.filter(t=>t.owner===b.id).length-state.territories.filter(t=>t.owner===a.id).length||a.id-b.id)
   $('#players').innerHTML = playerOrder.length ? playerOrder.map(p=>`
     <div class="player ${state.phase==='war'&&p.id===state.players[state.turn]?.id?'active':''} ${p.eliminated?'eliminated':''} ${state.diplomacyTarget===p.id?'diplomacy-target':''}" data-player-id="${p.id}" title="${state.phase==='war'&&p.id!==state.players[state.turn]?.id?'Select for diplomacy':'Your realm'}${(p.killedCountries||[]).length?` · Defeated: ${p.killedCountries.map(escapeHtml).join(', ')}`:''}"><span class="swatch" style="background:${p.color}"></span><div><b>${escapeHtml(p.name)}</b><small>${p.eliminated?'Eliminated':p.isHuman?'Human player':'AI player'}${state.phase==='war'&&p.id!==state.players[state.turn]?.id?agreementStatus(p.id):''}</small><small>☠ ${p.kills||0} · ☢ used ${p.nuclearUsed||0} · available ${p.nuclearBombs||0}</small></div><strong>${state.territories.filter(t=>t.owner===p.id).length}</strong></div>`).join('') : '<p class="empty">The players will appear here.</p>'
   document.querySelectorAll('.player[data-player-id]').forEach(row=>row.onclick=()=>{
@@ -546,12 +546,13 @@ function renderAttackArrow(){
 function renderStrengthBadges(){
   const layer=$('#strength-badges');if(!layer)return
   layer.innerHTML='';if(!state.strengthsOn||state.strengthView!=='combined')return
-  state.territories.forEach(t=>{if(!t.mapCenter)return;const label=document.createElementNS('http://www.w3.org/2000/svg','text');label.setAttribute('x',t.mapCenter[0]);label.setAttribute('y',t.mapCenter[1]);label.setAttribute('class','strength-badge');label.textContent=`⚔${t.attackStrength||0}·🛡${(t.defenseStrength||0)+lastStandDefense(t)}`;layer.appendChild(label)})
+  state.territories.forEach(t=>{if(!t.mapCenter||!isTerritoryVisible(t))return;const label=document.createElementNS('http://www.w3.org/2000/svg','text');label.setAttribute('x',t.mapCenter[0]);label.setAttribute('y',t.mapCenter[1]);label.setAttribute('class','strength-badge');label.textContent=`⚔${t.attackStrength||0}·🛡${(t.defenseStrength||0)+lastStandDefense(t)}`;layer.appendChild(label)})
 }
 
 function isTerritoryVisible(territory){
   if(!state.fogOfWar||state.phase==='setup'||state.phase==='claim')return true
-  const humanIds=new Set(state.players.filter(player=>player.isHuman&&!player.eliminated).map(player=>player.id))
+  const viewerId=window.MultiSync?.active?window.MultiSync.playerIndex:null
+  const humanIds=new Set(viewerId===null?state.players.filter(player=>player.isHuman&&!player.eliminated).map(player=>player.id):[viewerId])
   if(humanIds.has(territory.owner))return true
   return territory.neighbors.some(id=>humanIds.has(state.territories.find(t=>t.id===id)?.owner))
 }
