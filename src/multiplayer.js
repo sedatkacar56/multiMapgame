@@ -4,7 +4,7 @@ const socketUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location
 let socket
 let room
 let playerId
-window.MultiSync = { active: false, isHost: false, applyingRemote: false, sendAction(action) { send('action', { action }) } }
+window.MultiSync = { active: false, isHost: false, applyingRemote: false, lobbyConfiguring: false, sendAction(action) { send('action', { action }) } }
 
 function send(type, payload = {}) { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type, ...payload })) }
 function html(value) { return String(value).replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character])) }
@@ -32,6 +32,6 @@ function showLobby(nextRoom) {
   view.innerHTML = `<div class="room-code-label">ROOM CODE</div><div class="room-code">${html(room.code)}</div><p class="multi-status">Share this code with the other commanders.</p><div class="slot-list">${room.slots.map((slot, index) => slot ? `<div class="multi-slot"><span>${index + 1}</span><b>${html(slot.name)}</b><small>${slot.type === 'ai' ? 'AI commander' : slot.connected ? 'Connected' : 'Disconnected'}</small></div>` : `<div class="multi-slot empty"><span>${index + 1}</span><b>Open slot</b><small>${isHost ? 'Add AI or wait for a player' : 'Waiting for commander'}</small></div>`).join('')}</div>${isHost ? `<div class="multi-lobby-actions"><button class="secondary" id="multi-configure">Configure campaign</button><button class="secondary" id="multi-add-ai" ${room.slots.every(Boolean) ? 'disabled' : ''}>Add AI</button><button class="primary" id="multi-start" ${room.slots.some(slot => !slot) ? 'disabled' : ''}>Start campaign</button></div>` : '<p class="multi-wait">Waiting for the host to start…</p>'}`
   if (isHost) { $('#multi-configure').onclick = configureCampaign; $('#multi-add-ai').onclick = () => send('add-ai', { name: `AI Commander ${room.slots.filter(Boolean).length + 1}` }); $('#multi-start').onclick = () => send('start') }
 }
-function configureCampaign() { const lobby = document.querySelector('#multiplayer-lobby'); if (!lobby) return; lobby.classList.add('multi-configuring'); root.insertAdjacentHTML('beforeend', '<button id="multi-return-lobby" class="multi-return-lobby">Return to room lobby</button>'); $('#multi-return-lobby').onclick = () => { lobby.classList.remove('multi-configuring'); $('#multi-return-lobby')?.remove() } }
+function configureCampaign() { const lobby = document.querySelector('#multiplayer-lobby'); if (!lobby) return; window.MultiSync.lobbyConfiguring = true; lobby.classList.add('multi-configuring'); root.insertAdjacentHTML('beforeend', '<button id="multi-return-lobby" class="multi-return-lobby">Return to room lobby</button>'); $('#multi-return-lobby').onclick = () => { window.MultiSync.lobbyConfiguring = false; lobby.classList.remove('multi-configuring'); $('#multi-return-lobby')?.remove() } }
 window.addEventListener('borderline-rendered', () => { if (window.MultiSync.active && window.MultiSync.isHost && room?.started && window.BorderlineGame) send('state', { state: window.BorderlineGame.state }) })
 mount()
