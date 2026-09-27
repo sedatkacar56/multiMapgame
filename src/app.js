@@ -511,6 +511,7 @@ function render() {
   renderAttackArrow()
   renderStrengthBadges()
   const controls=$('.map-controls'),hideButton=$('#toggle-controls'),showButton=$('#show-controls'),shell=$('.game-shell'),panelButton=$('#toggle-panel'),showPanel=$('#show-panel');if(controls)controls.classList.toggle('hidden',state.controlsHidden);if(hideButton)hideButton.setAttribute('aria-pressed',String(state.controlsHidden));if(showButton)showButton.classList.toggle('visible',state.controlsHidden);if(shell)shell.classList.toggle('panel-hidden',state.panelHidden);if(panelButton){panelButton.textContent=state.panelHidden?'Show panel':'Hide panel';panelButton.setAttribute('aria-pressed',String(state.panelHidden))}if(showPanel)showPanel.classList.toggle('visible',state.panelHidden)
+  window.dispatchEvent(new CustomEvent('borderline-rendered'))
 }
 
 function renderPacts(){
@@ -763,6 +764,7 @@ function territoryClick(id) {
   const t=state.territories.find(x=>x.id===id)
   if(state.phase==='claim'){if(state.claimWinner!==null&&state.players[state.claimWinner].isHuman&&t.owner===null)finishClaim(id,state.claimWinner);return}
   const p=state.players[state.turn]; if(state.phase!=='war'||!p?.isHuman)return
+  if(window.MultiSync?.active&&!window.MultiSync.isHost&&!window.MultiSync.applyingRemote){window.MultiSync.sendAction({kind:'territory-click',id});return}
   if(state.nuclearPending===p.id){if(t.owner===p.id){state.message='Choose an enemy or rebel territory for the nuclear strike.';render();return}state.nuclearPending=null;state.message=detonateNuclearBomb(p.id,id,'manual');render();return}
   if(!state.selected){if(t.owner!==p.id)state.message='Select one of your own territories first.';else if(!canAttack(t))state.message=`${t.name} has no attacks left this turn.`;else{state.selected=id;state.message=`Choose a neighboring enemy to attack from ${t.name}.`}render();return}
   const source=state.territories.find(x=>x.id===state.selected)
@@ -828,6 +830,7 @@ function spawnRebellion(){
   return ` Rebels rose in ${territory.name}; conquer it to restore the realm.`
 }
 function endTurn(){
+  if(window.MultiSync?.active&&!window.MultiSync.isHost&&!window.MultiSync.applyingRemote){window.MultiSync.sendAction({kind:'end-turn'});return}
   clearTimeout(state.aiTimer);const endingPlayer=state.players[state.turn];if(endingPlayer?.isHuman)state.pendingRenewals=state.pendingRenewals.filter(pact=>!pact.key.split(':').map(Number).includes(endingPlayer.id));state.turnCount++;state.territories.forEach(t=>{t.attacked=false;t.attacks=0});state.attacksThisTurn={}
   const active=state.players.filter(player=>!player.eliminated),currentIndex=active.findIndex(player=>player.id===state.players[state.turn]?.id),roundComplete=currentIndex===active.length-1
   if(roundComplete){state.roundCount++;state.diplomacySent={};expireDiplomacy();state.diplomacyAggression={}}
@@ -903,5 +906,7 @@ $('#load-file-input').onchange=event=>{const file=event.target.files?.[0];if(!fi
 $('#export-game').onclick=exportGame
 $('#delete-game').onclick=deleteGame
 document.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveGame()}})
+window.BorderlineGame={state,render,prepareMultiplayer(room){const humans=room.slots.filter(Boolean).filter(slot=>slot.type==='human');state.humanCount=humans.length;state.playerCount=room.slots.length;state.playerNames=Array(33).fill('');humans.forEach((slot,index)=>{state.playerNames[index]=slot.name});Object.assign(state,{phase:'setup',claimWinner:null,selected:null});render()},applyRemote(snapshot){Object.assign(state,snapshot,{aiTimer:null});if(state.territories.length&&!document.querySelector('.country'))drawMap();render()}}
+window.addEventListener('multiplayer-action',event=>{if(!window.MultiSync?.isHost)return;const action=event.detail;if(action.kind==='territory-click')territoryClick(action.id);if(action.kind==='end-turn')endTurn()})
 document.querySelector('#root').insertAdjacentHTML('beforeend','<div class="loading" id="loader"><span class="spinner"></span>Drawing the frontiers…</div>')
 loadMap().then(()=>$('#loader')?.remove())

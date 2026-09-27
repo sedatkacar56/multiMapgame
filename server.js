@@ -47,7 +47,7 @@ websocket.on('connection', socket => {
     if (message.type === 'join') {
       const room = rooms.get(String(message.code || '').toUpperCase()); if (!room || room.started) { send(socket, { type: 'error', message: 'That room is unavailable.' }); return }
       const player = joinRoom(room, message.name, 'human'); if (!player) { send(socket, { type: 'error', message: 'That room is full.' }); return }
-      player.socket = socket; socket.room = room; socket.playerId = player.id; room.clients.add(socket); broadcast(room, { type: 'lobby', room: publicRoom(room) }); return
+      player.socket = socket; socket.room = room; socket.playerId = player.id; room.clients.add(socket); send(socket, { type: 'joined', playerId: socket.playerId, room: publicRoom(room) }); broadcast(room, { type: 'lobby', room: publicRoom(room) }); return
     }
     const room = socket.room, player = room?.slots.find(slot => slot?.id === socket.playerId)
     if (!room || !player) { send(socket, { type: 'error', message: 'Join a room first.' }); return }
@@ -68,6 +68,11 @@ websocket.on('connection', socket => {
     if (message.type === 'state') {
       if (socket.playerId !== room.hostId || !message.state) return
       room.state = { ...message.state, revision: (room.state?.revision || 0) + 1 }; broadcast(room, { type: 'state', state: room.state });
+    }
+    if (message.type === 'action') {
+      if (socket.playerId === room.hostId || !message.action) return
+      const hostSocket = room.slots.find(slot => slot?.id === room.hostId)?.socket
+      if (hostSocket) send(hostSocket, { type: 'remote-action', action: message.action, playerId: socket.playerId })
     }
   })
   socket.on('close', () => { const room = socket.room; if (!room) return; const slot = room.slots.find(player => player?.id === socket.playerId); if (slot) slot.socket = null; room.clients.delete(socket); if (!room.clients.size) rooms.delete(room.code); else broadcast(room, { type: 'lobby', room: publicRoom(room) }) })

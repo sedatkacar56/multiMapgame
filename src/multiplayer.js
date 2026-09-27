@@ -4,6 +4,7 @@ const socketUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location
 let socket
 let room
 let playerId
+window.MultiSync = { active: false, isHost: false, applyingRemote: false, sendAction(action) { send('action', { action }) } }
 
 function send(type, payload = {}) { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type, ...payload })) }
 function html(value) { return String(value).replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character])) }
@@ -20,7 +21,7 @@ function connect() {
   socket.onopen = () => setStatus('Connected. Joining the room…')
   socket.onerror = () => setStatus('Could not connect to the multiplayer server.')
   socket.onclose = () => { if (room && !room.started) setStatus('Connection closed. Refresh to try again.') }
-  socket.onmessage = event => { const message = JSON.parse(event.data); if (message.type === 'error') setStatus(message.message); if (message.type === 'created') { playerId = message.playerId; showLobby(message.room) } if (message.type === 'lobby') showLobby(message.room); if (message.type === 'started') { room = message.room; setStatus('The campaign is starting…'); setTimeout(() => document.querySelector('#multiplayer-lobby')?.remove(), 900) } }
+  socket.onmessage = event => { const message = JSON.parse(event.data); if (message.type === 'error') setStatus(message.message); if (message.type === 'created' || message.type === 'joined') { playerId = message.playerId; showLobby(message.room) } if (message.type === 'lobby') showLobby(message.room); if (message.type === 'remote-action') window.dispatchEvent(new CustomEvent('multiplayer-action', { detail: message.action })); if (message.type === 'state' && !window.MultiSync.isHost) { window.MultiSync.applyingRemote = true; window.BorderlineGame?.applyRemote(message.state); window.MultiSync.applyingRemote = false } if (message.type === 'started') { room = message.room; window.MultiSync.active = true; window.MultiSync.isHost = room.hostId === playerId; window.BorderlineGame?.prepareMultiplayer(room); setStatus('The campaign is starting…'); setTimeout(() => { document.querySelector('#multiplayer-lobby')?.remove(); document.querySelector('#begin')?.click() }, 250) } }
 }
 function showLobby(nextRoom) {
   room = nextRoom
@@ -31,4 +32,5 @@ function showLobby(nextRoom) {
   view.innerHTML = `<div class="room-code-label">ROOM CODE</div><div class="room-code">${html(room.code)}</div><p class="multi-status">Share this code with the other commanders.</p><div class="slot-list">${room.slots.map((slot, index) => slot ? `<div class="multi-slot"><span>${index + 1}</span><b>${html(slot.name)}</b><small>${slot.type === 'ai' ? 'AI commander' : slot.connected ? 'Connected' : 'Disconnected'}</small></div>` : `<div class="multi-slot empty"><span>${index + 1}</span><b>Open slot</b><small>${isHost ? 'Add AI or wait for a player' : 'Waiting for commander'}</small></div>`).join('')}</div>${isHost ? `<div class="multi-lobby-actions"><button class="secondary" id="multi-add-ai" ${room.slots.every(Boolean) ? 'disabled' : ''}>Add AI</button><button class="primary" id="multi-start" ${room.slots.some(slot => !slot) ? 'disabled' : ''}>Start campaign</button></div>` : '<p class="multi-wait">Waiting for the host to start…</p>'}`
   if (isHost) { $('#multi-add-ai').onclick = () => send('add-ai', { name: `AI Commander ${room.slots.filter(Boolean).length + 1}` }); $('#multi-start').onclick = () => send('start') }
 }
+window.addEventListener('borderline-rendered', () => { if (window.MultiSync.active && window.MultiSync.isHost && room?.started && window.BorderlineGame) send('state', { state: window.BorderlineGame.state }) })
 mount()
