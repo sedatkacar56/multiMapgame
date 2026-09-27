@@ -689,6 +689,7 @@ function startGame() {
   state.players=Array.from({length:state.playerCount},(_,i)=>({id:i,name:multiplayerSlots?.[i]?.name||`Player ${i+1}`,color:COLORS[i%COLORS.length],isHuman:multiplayerSlots?multiplayerSlots[i]?.type==='human':i<state.humanCount,eliminated:false,kills:0,killedCountries:[],nuclearBombs:0,nuclearUsed:0}))
   assignConnectedRealms()
   assignRealmNames()
+  if(window.MultiSync?.active)state.fastAI=true
   Object.assign(state,{phase:'war',turn:0,turnCount:0,roundCount:0,alliances:[],ceasefires:[],pendingRenewals:[],diplomacyTarget:null,diplomacyOffers:[],diplomacySent:{},diplomacyAggression:{},attacksThisTurn:{},battleCounts:{},nuclearPending:null,paused:false,showPacts:Boolean(window.MultiSync?.active),selected:null,claimWinner:null,dice:[],battle:null,nuclearStrike:null,message:turnMessage(state.players[0])}); render();if(!state.players[0]?.isHuman)runAI()
 }
 
