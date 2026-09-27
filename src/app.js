@@ -440,6 +440,7 @@ function updateAllianceButtons(){
 }
 function updateAutoRejectButton(){const button=$('#toggle-auto-reject');if(button){button.textContent=`Auto-reject offers: ${state.autoRejectOffers?'On':'Off'}`;button.classList.toggle('active',state.autoRejectOffers);button.setAttribute('aria-pressed',String(state.autoRejectOffers))}}
 function updatePauseButton(){const button=$('#toggle-pause-ai');if(button){button.textContent=state.paused?'Resume AI':'Pause AI';button.classList.toggle('active',state.paused);button.setAttribute('aria-pressed',String(state.paused))}}
+function multiplayerSettingAllowed(){return !window.MultiSync?.active||(window.MultiSync.isHost&&state.phase==='setup')}
 
 function attackLimit(){return state.attackMode==='moderate'?3:Infinity}
 function canAttack(territory){return territory.attacks<1&&(state.attackMode!=='moderate'||(state.attacksThisTurn[territory.owner]||0)<attackLimit())}
@@ -669,7 +670,8 @@ function renderModal() {
 }
 
 function startGame() {
-  state.players=Array.from({length:state.playerCount},(_,i)=>({id:i,name:`Player ${i+1}`,color:COLORS[i%COLORS.length],isHuman:i<state.humanCount,eliminated:false,kills:0,killedCountries:[],nuclearBombs:0,nuclearUsed:0}))
+  const multiplayerSlots=window.MultiSync?.active?window.MultiSync.slotConfig:null
+  state.players=Array.from({length:state.playerCount},(_,i)=>({id:i,name:multiplayerSlots?.[i]?.name||`Player ${i+1}`,color:COLORS[i%COLORS.length],isHuman:multiplayerSlots?multiplayerSlots[i]?.type==='human':i<state.humanCount,eliminated:false,kills:0,killedCountries:[],nuclearBombs:0,nuclearUsed:0}))
   assignConnectedRealms()
   assignRealmNames()
   Object.assign(state,{phase:'war',turn:0,turnCount:0,roundCount:0,alliances:[],ceasefires:[],pendingRenewals:[],diplomacyTarget:null,diplomacyOffers:[],diplomacySent:{},diplomacyAggression:{},attacksThisTurn:{},battleCounts:{},nuclearPending:null,paused:false,selected:null,claimWinner:null,dice:[],battle:null,nuclearStrike:null,message:turnMessage(state.players[0])}); render()
@@ -764,6 +766,7 @@ function territoryClick(id) {
   const t=state.territories.find(x=>x.id===id)
   if(state.phase==='claim'){if(state.claimWinner!==null&&state.players[state.claimWinner].isHuman&&t.owner===null)finishClaim(id,state.claimWinner);return}
   const p=state.players[state.turn]; if(state.phase!=='war'||!p?.isHuman)return
+  if(window.MultiSync?.active&&!window.MultiSync.applyingRemote&&window.MultiSync.playerIndex!==state.turn){state.message='Wait for your commander turn.';render();return}
   if(window.MultiSync?.active&&!window.MultiSync.isHost&&!window.MultiSync.applyingRemote){window.MultiSync.sendAction({kind:'territory-click',id});return}
   if(state.nuclearPending===p.id){if(t.owner===p.id){state.message='Choose an enemy or rebel territory for the nuclear strike.';render();return}state.nuclearPending=null;state.message=detonateNuclearBomb(p.id,id,'manual');render();return}
   if(!state.selected){if(t.owner!==p.id)state.message='Select one of your own territories first.';else if(!canAttack(t))state.message=`${t.name} has no attacks left this turn.`;else{state.selected=id;state.message=`Choose a neighboring enemy to attack from ${t.name}.`}render();return}
@@ -830,6 +833,7 @@ function spawnRebellion(){
   return ` Rebels rose in ${territory.name}; conquer it to restore the realm.`
 }
 function endTurn(){
+  if(window.MultiSync?.active&&!window.MultiSync.applyingRemote&&window.MultiSync.playerIndex!==state.turn)return
   if(window.MultiSync?.active&&!window.MultiSync.isHost&&!window.MultiSync.applyingRemote){window.MultiSync.sendAction({kind:'end-turn'});return}
   clearTimeout(state.aiTimer);const endingPlayer=state.players[state.turn];if(endingPlayer?.isHuman)state.pendingRenewals=state.pendingRenewals.filter(pact=>!pact.key.split(':').map(Number).includes(endingPlayer.id));state.turnCount++;state.territories.forEach(t=>{t.attacked=false;t.attacks=0});state.attacksThisTurn={}
   const active=state.players.filter(player=>!player.eliminated),currentIndex=active.findIndex(player=>player.id===state.players[state.turn]?.id),roundComplete=currentIndex===active.length-1
@@ -846,14 +850,14 @@ $('#zoom-reset').onclick=()=>{if(mapZoom)d3.select('.map').call(mapZoom.transfor
 $('#toggle-labels').onclick=()=>{state.showLabels=!state.showLabels;updateLabels()}
 $('#toggle-player-labels').onclick=()=>{state.showPlayerLabels=!state.showPlayerLabels;updatePlayerLabels()}
 $('#player-label-size').oninput=e=>{state.playerLabelSize=Number(e.target.value);updatePlayerLabels()}
-$('#toggle-fast-ai').onclick=()=>{state.fastAI=!state.fastAI;const button=$('#toggle-fast-ai');button.classList.toggle('active',state.fastAI);button.setAttribute('aria-pressed',String(state.fastAI));const player=state.players[state.turn];if(state.phase==='war'&&player&&!player.isHuman){clearTimeout(state.aiTimer);runAI()}}
-function toggleHardMode(){const modes=['normal','moderate','hard'];state.attackMode=modes[(modes.indexOf(state.attackMode)+1)%modes.length];if(state.attackMode==='hard')state.rebelsOn=true;updateHardModeButtons();updateRebelButtons();if(state.phase==='war')render()}
-function toggleStrengths(){state.strengthsOn=!state.strengthsOn;updateStrengthButtons();if(state.phase==='war')render()}
-function toggleCaptureAttack(){state.captureAttackOn=!state.captureAttackOn;updateCaptureAttackButtons();if(state.phase==='war')render()}
-function toggleRebels(){state.rebelsOn=!state.rebelsOn;updateRebelButtons();if(state.phase==='war')render()}
-function toggleNuclear(){state.nuclearOn=!state.nuclearOn;updateNuclearButton();if(state.phase==='war')render()}
-function toggleFog(){state.fogOfWar=!state.fogOfWar;updateFogButton();updateLabels();updatePlayerLabels();if(state.phase==='war')render()}
-function toggleAlliances(){state.alliancesOn=!state.alliancesOn;updateAllianceButtons();if(state.phase==='war')render()}
+$('#toggle-fast-ai').onclick=()=>{if(!multiplayerSettingAllowed())return;state.fastAI=!state.fastAI;const button=$('#toggle-fast-ai');button.classList.toggle('active',state.fastAI);button.setAttribute('aria-pressed',String(state.fastAI));const player=state.players[state.turn];if(state.phase==='war'&&player&&!player.isHuman){clearTimeout(state.aiTimer);runAI()}}
+function toggleHardMode(){if(!multiplayerSettingAllowed())return;const modes=['normal','moderate','hard'];state.attackMode=modes[(modes.indexOf(state.attackMode)+1)%modes.length];if(state.attackMode==='hard')state.rebelsOn=true;updateHardModeButtons();updateRebelButtons();if(state.phase==='war')render()}
+function toggleStrengths(){if(!multiplayerSettingAllowed())return;state.strengthsOn=!state.strengthsOn;updateStrengthButtons();if(state.phase==='war')render()}
+function toggleCaptureAttack(){if(!multiplayerSettingAllowed())return;state.captureAttackOn=!state.captureAttackOn;updateCaptureAttackButtons();if(state.phase==='war')render()}
+function toggleRebels(){if(!multiplayerSettingAllowed())return;state.rebelsOn=!state.rebelsOn;updateRebelButtons();if(state.phase==='war')render()}
+function toggleNuclear(){if(!multiplayerSettingAllowed())return;state.nuclearOn=!state.nuclearOn;updateNuclearButton();if(state.phase==='war')render()}
+function toggleFog(){if(!multiplayerSettingAllowed())return;state.fogOfWar=!state.fogOfWar;updateFogButton();updateLabels();updatePlayerLabels();if(state.phase==='war')render()}
+function toggleAlliances(){if(!multiplayerSettingAllowed())return;state.alliancesOn=!state.alliancesOn;updateAllianceButtons();if(state.phase==='war')render()}
 $('#toggle-hard-mode').onclick=toggleHardMode
 $('#toggle-strengths').onclick=toggleStrengths
 $('#strength-view').onchange=e=>{if(state.strengthsOn){state.strengthView=e.target.value;render()}}
@@ -861,13 +865,13 @@ $('#toggle-capture-attack').onclick=toggleCaptureAttack
 $('#toggle-rebels').onclick=toggleRebels
 $('#toggle-fog').onclick=toggleFog
 $('#toggle-alliances').onclick=toggleAlliances
-$('#toggle-auto-reject').onclick=()=>{state.autoRejectOffers=!state.autoRejectOffers;if(state.autoRejectOffers)state.diplomacyOffers=[];updateAutoRejectButton();render()}
+$('#toggle-auto-reject').onclick=()=>{if(!multiplayerSettingAllowed())return;state.autoRejectOffers=!state.autoRejectOffers;if(state.autoRejectOffers)state.diplomacyOffers=[];updateAutoRejectButton();render()}
 function fullscreenElement(){return document.fullscreenElement||document.webkitFullscreenElement}
 function updateFullscreenButton(){const button=$('#toggle-fullscreen');if(!button)return;const active=Boolean(fullscreenElement());button.textContent=active?'Exit fullscreen':'Fullscreen';button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))}
 $('#toggle-fullscreen').onclick=async()=>{try{if(fullscreenElement()){if(document.exitFullscreen)await document.exitFullscreen();else if(document.webkitExitFullscreen)document.webkitExitFullscreen()}else{const root=document.documentElement;if(root.requestFullscreen)await root.requestFullscreen();else if(root.webkitRequestFullscreen)root.webkitRequestFullscreen();else state.message='Fullscreen is not supported by this browser.'}}catch{state.message='Fullscreen could not be enabled.'}updateFullscreenButton();if(state.message)render()}
 document.addEventListener('fullscreenchange',updateFullscreenButton)
 document.addEventListener('webkitfullscreenchange',updateFullscreenButton)
-$('#toggle-pause-ai').onclick=()=>{state.paused=!state.paused;if(state.paused)clearTimeout(state.aiTimer);updatePauseButton();if(!state.paused)runAI()}
+$('#toggle-pause-ai').onclick=()=>{if(!multiplayerSettingAllowed())return;state.paused=!state.paused;if(state.paused)clearTimeout(state.aiTimer);updatePauseButton();if(!state.paused)runAI()}
 $('#toggle-pacts').onclick=()=>{state.showPacts=!state.showPacts;const button=$('#toggle-pacts');button.classList.toggle('active',state.showPacts);button.setAttribute('aria-pressed',String(state.showPacts));renderPacts()}
 $('#toggle-controls').onclick=()=>{state.controlsHidden=true;render()}
 $('#show-controls').onclick=()=>{state.controlsHidden=false;render()}
@@ -906,7 +910,7 @@ $('#load-file-input').onchange=event=>{const file=event.target.files?.[0];if(!fi
 $('#export-game').onclick=exportGame
 $('#delete-game').onclick=deleteGame
 document.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveGame()}})
-window.BorderlineGame={state,render,prepareMultiplayer(room){const humans=room.slots.filter(Boolean).filter(slot=>slot.type==='human');state.humanCount=humans.length;state.playerCount=room.slots.length;state.playerNames=Array(33).fill('');humans.forEach((slot,index)=>{state.playerNames[index]=slot.name});Object.assign(state,{phase:'setup',claimWinner:null,selected:null});render()},applyRemote(snapshot){Object.assign(state,snapshot,{aiTimer:null});if(state.territories.length&&!document.querySelector('.country'))drawMap();render()}}
-window.addEventListener('multiplayer-action',event=>{if(!window.MultiSync?.isHost)return;const action=event.detail;if(action.kind==='territory-click')territoryClick(action.id);if(action.kind==='end-turn')endTurn()})
+window.BorderlineGame={state,render,prepareMultiplayer(room){const humans=room.slots.filter(Boolean).filter(slot=>slot.type==='human');state.humanCount=humans.length;state.playerCount=room.slots.length;state.playerNames=Array(33).fill('');room.slots.forEach((slot,index)=>{if(slot)state.playerNames[index]=slot.name});window.MultiSync.slotConfig=room.slots;Object.assign(state,{phase:'setup',claimWinner:null,selected:null});render()},applyRemote(snapshot){Object.assign(state,snapshot,{aiTimer:null});if(state.territories.length&&!document.querySelector('.country'))drawMap();render()}}
+window.addEventListener('multiplayer-action',event=>{if(!window.MultiSync?.isHost)return;const action=event.detail;if(action.playerId&&window.MultiSync.playerIndexById?.[action.playerId]!==state.turn)return;if(action.kind==='territory-click')territoryClick(action.id);if(action.kind==='end-turn')endTurn()})
 document.querySelector('#root').insertAdjacentHTML('beforeend','<div class="loading" id="loader"><span class="spinner"></span>Drawing the frontiers…</div>')
 loadMap().then(()=>$('#loader')?.remove())
