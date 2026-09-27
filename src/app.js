@@ -928,6 +928,30 @@ $('#export-game').onclick=exportGame
 $('#delete-game').onclick=deleteGame
 document.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveGame()}})
 window.BorderlineGame={state,render,toggleMusic,async enableMusic(){if(!state.musicOn)await toggleMusic();else await startSelectedMusic()},prepareMultiplayer(room){const humans=room.slots.filter(Boolean).filter(slot=>slot.type==='human');state.humanCount=humans.length;state.playerCount=room.slots.length;state.playerNames=Array(33).fill('');room.slots.forEach((slot,index)=>{if(slot)state.playerNames[index]=slot.name});window.MultiSync.slotConfig=room.slots;Object.assign(state,{phase:'setup',claimWinner:null,selected:null});render()},applyRemote(snapshot){Object.assign(state,snapshot,{aiTimer:null});if(state.territories.length&&!document.querySelector('.country'))drawMap();render()}}
-window.addEventListener('multiplayer-action',event=>{if(!window.MultiSync?.isHost)return;const action=event.detail;const senderIndex=action.playerId?window.MultiSync.playerIndexById?.[action.playerId]:undefined;if(action.kind==='pact-response'){const offerIndex=state.diplomacyOffers.findIndex(offer=>`${offer.from}:${offer.to}:${offer.type}`===action.offerKey);if(offerIndex<0||senderIndex!==state.diplomacyOffers[offerIndex].to)return;action.response==='accept'?acceptDiplomacyOffer(offerIndex,senderIndex):rejectDiplomacyOffer(offerIndex,senderIndex);return}if(action.kind==='pact-renew'){const ids=String(action.key||'').split(':').map(Number);if(senderIndex===undefined||!ids.includes(senderIndex)||ids.length!==2)return;renewPact(action.pactType,action.key);return}if(senderIndex!==undefined&&senderIndex!==state.turn)return;if(action.kind==='territory-click')territoryClick(action.id);if(action.kind==='end-turn')endTurn();if(action.kind==='pact-request')requestPact(action.pactType,action.targetId)})
+window.addEventListener('multiplayer-action',event=>{
+  if(!window.MultiSync?.isHost)return
+  const action=event.detail
+  const senderIndex=action.playerId?window.MultiSync.playerIndexById?.[action.playerId]:undefined
+  if(action.kind==='pact-response'){
+    const offerIndex=state.diplomacyOffers.findIndex(offer=>`${offer.from}:${offer.to}:${offer.type}`===action.offerKey)
+    if(offerIndex<0||senderIndex!==state.diplomacyOffers[offerIndex].to)return
+    action.response==='accept'?acceptDiplomacyOffer(offerIndex,senderIndex):rejectDiplomacyOffer(offerIndex,senderIndex)
+    return
+  }
+  if(action.kind==='pact-renew'){
+    const ids=String(action.key||'').split(':').map(Number)
+    if(senderIndex===undefined||!ids.includes(senderIndex)||ids.length!==2)return
+    renewPact(action.pactType,action.key)
+    return
+  }
+  if(senderIndex!==undefined&&senderIndex!==state.turn)return
+  const wasApplyingRemote=window.MultiSync.applyingRemote
+  window.MultiSync.applyingRemote=true
+  try{
+    if(action.kind==='territory-click')territoryClick(action.id)
+    if(action.kind==='end-turn')endTurn()
+    if(action.kind==='pact-request')requestPact(action.pactType,action.targetId)
+  }finally{window.MultiSync.applyingRemote=wasApplyingRemote}
+})
 document.querySelector('#root').insertAdjacentHTML('beforeend','<div class="loading" id="loader"><span class="spinner"></span>Drawing the frontiers…</div>')
 loadMap().then(()=>$('#loader')?.remove())
