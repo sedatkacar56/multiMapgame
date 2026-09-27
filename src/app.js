@@ -927,7 +927,7 @@ $('#load-file-input').onchange=event=>{const file=event.target.files?.[0];if(!fi
 $('#export-game').onclick=exportGame
 $('#delete-game').onclick=deleteGame
 document.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveGame()}})
-window.BorderlineGame={state,render,toggleMusic,async enableMusic(){if(!state.musicOn)await toggleMusic();else await startSelectedMusic()},prepareMultiplayer(room){const humans=room.slots.filter(Boolean).filter(slot=>slot.type==='human');state.humanCount=humans.length;state.playerCount=room.slots.length;state.playerNames=Array(33).fill('');room.slots.forEach((slot,index)=>{if(slot)state.playerNames[index]=slot.name});window.MultiSync.slotConfig=room.slots;Object.assign(state,{phase:'setup',claimWinner:null,selected:null});render()},applyRemote(snapshot){Object.assign(state,snapshot,{aiTimer:null});if(state.territories.length&&!document.querySelector('.country'))drawMap();render()}}
+window.BorderlineGame={state,render,toggleMusic,async enableMusic(){if(!state.musicOn)await toggleMusic();else await startSelectedMusic()},prepareMultiplayer(room){const humans=room.slots.filter(Boolean).filter(slot=>slot.type==='human');state.humanCount=humans.length;state.playerCount=room.slots.length;state.playerNames=Array(33).fill('');room.slots.forEach((slot,index)=>{if(slot)state.playerNames[index]=slot.name});window.MultiSync.slotConfig=room.slots;Object.assign(state,{phase:'setup',claimWinner:null,selected:null,fastAI:true,paused:false});render()},applyRemote(snapshot){Object.assign(state,snapshot,{aiTimer:null});if(state.territories.length&&!document.querySelector('.country'))drawMap();render()}}
 window.addEventListener('multiplayer-action',event=>{
   if(!window.MultiSync?.isHost)return
   const action=event.detail
@@ -951,7 +951,10 @@ window.addEventListener('multiplayer-action',event=>{
     if(action.kind==='territory-click')territoryClick(action.id)
     if(action.kind==='end-turn')endTurn()
     if(action.kind==='pact-request')requestPact(action.pactType,action.targetId)
-  }finally{window.MultiSync.applyingRemote=wasApplyingRemote}
+  }finally{
+    window.MultiSync.applyingRemote=wasApplyingRemote
+    if(state.phase==='war'&&state.players[state.turn]&&!state.players[state.turn].isHuman){clearTimeout(state.aiTimer);state.aiTimer=null;runAI()}
+  }
 })
 document.querySelector('#root').insertAdjacentHTML('beforeend','<div class="loading" id="loader"><span class="spinner"></span>Drawing the frontiers…</div>')
 loadMap().then(()=>$('#loader')?.remove())
