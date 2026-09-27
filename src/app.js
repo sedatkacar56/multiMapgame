@@ -202,6 +202,7 @@ function drawMap() {
 function updateLabels() {
   const button=$('#toggle-labels')
   if(button){button.classList.toggle('active',state.showLabels);button.setAttribute('aria-pressed',String(state.showLabels))}
+  const mobile=window.innerWidth<=800
   const labels=[...document.querySelectorAll('.place-label')]
   const accepted=[]
   labels.sort((a,b)=>Number(b.dataset.area)-Number(a.dataset.area)).forEach(label=>{
@@ -212,7 +213,9 @@ function updateLabels() {
     const fitFont=available*.82/Math.max(1,(label.textContent?.length||1)*.54)
     const fontSize=Math.min(baseFont,fitFont)
     const screenFont=fontSize*currentZoom.k
-    const readable=area*currentZoom.k*currentZoom.k>22&&screenFont>=4.1
+    const readable=mobile
+      ? area*currentZoom.k*currentZoom.k>8&&screenFont>=2.7
+      : area*currentZoom.k*currentZoom.k>22&&screenFont>=4.1
     const [screenX,screenY]=currentZoom.apply([Number(label.getAttribute('x')),Number(label.getAttribute('y'))])
     const textWidth=(label.textContent?.length||1)*screenFont*.54+4
     const textHeight=screenFont*1.35+3
@@ -255,6 +258,7 @@ function updatePlayerLabels() {
       .sort((a,b)=>Math.hypot(a[0]-middle[0],a[1]-middle[1])-Math.hypot(b[0]-middle[0],b[1]-middle[1]))
     return {player,owned,middle,candidates:unique,realmWidth,realmHeight,vertical:realmHeight>realmWidth*1.15,area:owned.reduce((sum,t)=>sum+t.mapArea,0)}
   }).filter(Boolean).sort((a,b)=>b.area-a.area)
+  const mobile=window.innerWidth<=800
   const accepted=[]
   entries.forEach(({player,owned,candidates,realmWidth,realmHeight,vertical})=>{
     const words=player.name.trim().split(/\s+/)
@@ -267,16 +271,17 @@ function updatePlayerLabels() {
     const longest=Math.max(...lines.map(line=>line.length))
     const major=(vertical?realmHeight:realmWidth)*currentZoom.k
     const minor=(vertical?realmWidth:realmHeight)*currentZoom.k
-    const initialSize=Math.max(4,Math.min(state.playerLabelSize,major*.74/Math.max(1,longest*.6),minor*.52/lines.length))
+    const initialSize=Math.max(mobile?3:4,Math.min(state.playerLabelSize,major*.74/Math.max(1,longest*.6),minor*.52/lines.length))
     const makeBox=(center,size)=>{
       const [screenX,screenY]=currentZoom.apply(center)
       const bannerWidth=Math.max(20,longest*size*.6+10), bannerHeight=size*lines.length+7
       const width=vertical?bannerHeight:bannerWidth, height=vertical?bannerWidth:bannerHeight
       return {left:screenX-width/2,right:screenX+width/2,top:screenY-height/2,bottom:screenY+height/2,bannerWidth,bannerHeight,center,size}
     }
-    const hasOverlap=box=>accepted.some(other=>!(box.right+2<other.left||box.left-2>other.right||box.bottom+2<other.top||box.top-2>other.bottom))
+    const overlapPadding=mobile?0:2
+    const hasOverlap=box=>accepted.some(other=>!(box.right+overlapPadding<other.left||box.left-overlapPadding>other.right||box.bottom+overlapPadding<other.top||box.top-overlapPadding>other.bottom))
     const fitsOnLand=box=>{
-      const inset=2
+      const inset=mobile?1:2
       const xs=[box.left+inset,(box.left+box.right)/2,box.right-inset], ys=[box.top+inset,(box.top+box.bottom)/2,box.bottom-inset]
       const points=xs.flatMap(x=>ys.map(y=>[x,y]))
       return points.every(point=>{
@@ -285,7 +290,7 @@ function updatePlayerLabels() {
       })
     }
     let box
-    for(let size=initialSize;size>=3&&!box;size-=.5)box=candidates.map(center=>makeBox(center,size)).find(candidate=>!hasOverlap(candidate)&&fitsOnLand(candidate))
+    for(let size=initialSize;size>=(mobile?2:3)&&!box;size-=.5)box=candidates.map(center=>makeBox(center,size)).find(candidate=>!hasOverlap(candidate)&&fitsOnLand(candidate))
     if(!box)return
     const {center,size:fontSize}=box
     accepted.push(box)
